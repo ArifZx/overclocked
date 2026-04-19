@@ -26,6 +26,8 @@ interface TouchPositions {
   fbh: number;
 }
 
+type AttackRequirement = "shake" | "flip" | "tilt_left" | "tilt_right" | "hold";
+
 export class Game extends Scene {
   // ── Systems ────────────────────────────────────────────────────────────────
   private _motion!: MotionSystem;
@@ -39,6 +41,9 @@ export class Game extends Scene {
   private _tiltNeedle!: GameObjects.Graphics;
   private _warningText!: GameObjects.Text;
   private _chaosText!: GameObjects.Text;
+  private _attackText!: GameObjects.Text;
+  private _attackTimerText!: GameObjects.Text;
+  private _comboText!: GameObjects.Text;
   private _scanlineGfx!: GameObjects.Graphics;
   private _flashGfx!: GameObjects.Graphics;
 
@@ -68,6 +73,12 @@ export class Game extends Scene {
   private _shakeScreenTime = 0;
   private _screenShakeMag = 0;
   private _warningFlicker = 0;
+  private _lastShakePower = 0;
+
+  // ── Attack state ───────────────────────────────────────────────────────────
+  private _attackResolved = false;
+  private _attackRequirement: AttackRequirement | null = null;
+  private _tiltTargetDir: -1 | 1 = 1;
 
   constructor() {
     super("Game");
@@ -121,25 +132,16 @@ export class Game extends Scene {
     const chaos = gameState.activeChaosEvent;
     let effectiveTilt = gameState.tiltAngle;
     if (chaos === "control_inversion") effectiveTilt = -effectiveTilt;
-    if (chaos === "sensor_drift") effectiveTilt += (Math.random() - 0.5) * 30;
-    if (chaos === "orientation_lock") effectiveTilt = 0;
 
     // ── Voltage ────────────────────────────────────────────────────────────
     const tiltFraction = Math.max(-1, Math.min(1, effectiveTilt / MACHINE.TILT_SENSITIVITY));
     const targetVoltage = 50 + tiltFraction * 50;
 
-    if (chaos === "voltage_spike") {
-      gameState.voltage = Math.min(
-        MACHINE.MAX_VOLTAGE,
-        gameState.voltage + Math.random() * 150 * dt,
-      );
-    } else {
-      gameState.voltage += (targetVoltage - gameState.voltage) * Math.min(1, dt * 5);
-      gameState.voltage = Math.max(
-        MACHINE.MIN_VOLTAGE,
-        Math.min(MACHINE.MAX_VOLTAGE, gameState.voltage),
-      );
-    }
+    gameState.voltage += (targetVoltage - gameState.voltage) * Math.min(1, dt * 5);
+    gameState.voltage = Math.max(
+      MACHINE.MIN_VOLTAGE,
+      Math.min(MACHINE.MAX_VOLTAGE, gameState.voltage),
+    );
 
     // ── Heat ───────────────────────────────────────────────────────────────
     const vol = gameState.voltage / 100;
@@ -148,9 +150,7 @@ export class Game extends Scene {
     let dHeat = vol * MACHINE.HEAT_RATE * heatMult * dt * 100;
     dHeat -= MACHINE.PASSIVE_COOLING * dt;
 
-    let effectiveShake = gameState.shakePower;
-    if (chaos === "fan_jam") effectiveShake = 0;
-    if (chaos === "phantom_shake") effectiveShake += Math.random() * 15;
+    const effectiveShake = gameState.shakePower;
     dHeat -= effectiveShake * MACHINE.SHAKE_COOLING_RATE * dt;
 
     if (gameState.shakePower > MACHINE.SHAKE_INSTABILITY_THRESHOLD) {
@@ -163,10 +163,6 @@ export class Game extends Scene {
       MACHINE.PRESSURE_MIN + Math.random() * (MACHINE.PRESSURE_MAX - MACHINE.PRESSURE_MIN);
     gameState.pressure += pRate * dt;
 
-    if (gameState.flipTriggered) {
-      this._applyFlipEffect();
-      gameState.flipTriggered = false;
-    }
     gameState.pressure = Math.max(0, Math.min(MACHINE.MAX_PRESSURE, gameState.pressure));
 
     // ── Score ──────────────────────────────────────────────────────────────
@@ -174,6 +170,15 @@ export class Game extends Scene {
 
     // ── Chaos tick ─────────────────────────────────────────────────────────
     this._chaos.update(time);
+
+    // ── Attack resolution loop ─────────────────────────────────────────────
+    const shakeBurst = gameState.shakePower - this._lastShakePower > 7;
+    const flipTriggered = gameState.flipTriggered;
+    const panicInput = shakeBurst || flipTriggered || Math.abs(tiltFraction) > 0.78;
+    this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, panicInput);
+
+    this._lastShakePower = gameState.shakePower;
+    gameState.flipTriggered = false;
 
     // ── Game over ──────────────────────────────────────────────────────────
     if (gameState.heat >= MACHINE.MAX_HEAT) {
@@ -198,36 +203,35 @@ export class Game extends Scene {
     this._updateTiltIndicator(tiltFraction);
     this._updateScoreText();
     this._updateWarning();
+    this._updateAttackHud(time);
     this._updateScanline(delta);
     this._updateScreenShake(delta);
     this._updateFlash(delta);
     this._updateTouchVisuals();
   }
 
-  // ─── Game mechanics ───────────────────────────────────────────────────────
-  private _applyFlipEffect() {
-    if (Math.random() < 0.5) {
-      gameState.pressure = Math.max(0, gameState.pressure * 0.3);
-      this._showWarning("🔄 PRESSURE VENTED!", PALETTE.PRESSURE);
-    } else {
-      gameState.heat = Math.min(MACHINE.MAX_HEAT, gameState.heat + 15);
-      this._showWarning("🔄 THERMAL SPIKE!", PALETTE.HEAT);
-    }
-    this._triggerFlash(0.6, PALETTE.VOLTAGE);
-    EventBus.emit(Events.SPECTACLE_ACTION, { type: "flip" });
-  }
-
   // ─── EventBus handlers ────────────────────────────────────────────────────
   private _onChaosStart(data: { event: ChaosEventName }) {
+    this._attackResolved = false;
     this._chaosText.setText(`⚠ ${CHAOS_LABELS[data.event]}`);
     this._chaosText.setAlpha(1);
+    this._attackRequirement = this._pickRequirement(data.event);
+    this._attackText.setText(this._promptForRequirement(this._attackRequirement));
+    this._attackText.setAlpha(1);
+    this._attackTimerText.setAlpha(1);
     this._triggerFlash(0.4, PALETTE.WARNING);
     this._triggerScreenShake(400, 4 * DPR);
     EventBus.emit(Events.SPECTACLE_HIT, { type: "chaos" });
   }
 
-  private _onChaosEnd(_data: { event: ChaosEventName }) {
+  private _onChaosEnd(data: { event: ChaosEventName }) {
+    if (!this._attackResolved) {
+      this._handleAttackFail(data.event, "timeout");
+    }
+    this._attackRequirement = null;
     this.tweens.add({ targets: this._chaosText, alpha: 0, duration: 500 });
+    this.tweens.add({ targets: this._attackText, alpha: 0, duration: 350 });
+    this.tweens.add({ targets: this._attackTimerText, alpha: 0, duration: 350 });
   }
 
   private _onGameOver() {
@@ -288,6 +292,16 @@ export class Game extends Scene {
       })
       .setOrigin(0.5, 0.5);
 
+    this._comboText = this.add
+      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.045), "COMBO x0", {
+        fontSize: UI.VALUE_FS,
+        fontFamily: "monospace",
+        color: "#ffcc00",
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0.8);
+
     this._heatBar = this._makeBar(
       st + uh * UI.HEAT_Y_FRAC,
       "🔥 HEAT",
@@ -324,6 +338,26 @@ export class Game extends Scene {
     this._chaosText = this.add
       .text(cx, st + uh * UI.WARNING_Y_FRAC + 30 * DPR, "", {
         fontSize: UI.CHAOS_FS,
+        fontFamily: "monospace",
+        color: "#ffcc00",
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0);
+
+    this._attackText = this.add
+      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.06), "", {
+        fontSize: UI.CHAOS_FS,
+        fontFamily: "monospace",
+        color: PALETTE.TEXT,
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0);
+
+    this._attackTimerText = this.add
+      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.1), "", {
+        fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
         align: "center",
@@ -528,6 +562,8 @@ export class Game extends Scene {
 
   private _updateScoreText() {
     this._scoreText.setText(Math.floor(gameState.score).toString().padStart(6, "0"));
+    this._comboText.setText(`COMBO x${gameState.combo}`);
+    this._comboText.setAlpha(gameState.combo > 1 ? 1 : 0.75);
   }
 
   private _updateWarning() {
@@ -541,6 +577,110 @@ export class Game extends Scene {
     } else if (gameState.activeChaosEvent === null && this._warningText.alpha > 0) {
       this._warningText.setAlpha(Math.max(0, this._warningText.alpha - 0.05));
     }
+  }
+
+  private _updateAttackHud(nowMs: number) {
+    if (gameState.activeChaosEvent === null || this._attackResolved) return;
+
+    const remaining = Math.max(0, gameState.chaosEndTime - nowMs);
+    const sec = (remaining / 1000).toFixed(1);
+    this._attackTimerText.setText(`RESPOND ${sec}s`);
+    this._attackTimerText.setColor(remaining < 900 ? "#ff4444" : "#ffcc00");
+  }
+
+  private _pickRequirement(event: ChaosEventName): AttackRequirement {
+    if (event === "heat_burst") return "shake";
+    if (event === "pressure_crash") return "flip";
+    if (event === "phantom_alert") return "hold";
+
+    this._tiltTargetDir = Math.random() < 0.5 ? -1 : 1;
+    return this._tiltTargetDir === -1 ? "tilt_left" : "tilt_right";
+  }
+
+  private _promptForRequirement(req: AttackRequirement): string {
+    if (req === "shake") return "SHAKE FAST NOW";
+    if (req === "flip") return "FLIP YOUR PHONE";
+    if (req === "tilt_left") return "TILT LEFT HARD";
+    if (req === "tilt_right") return "TILT RIGHT HARD";
+    return "DO NOTHING - HOLD STEADY";
+  }
+
+  private _resolveAttackWindow(
+    nowMs: number,
+    tiltFraction: number,
+    shakeBurst: boolean,
+    flipTriggered: boolean,
+    panicInput: boolean,
+  ) {
+    const event = gameState.activeChaosEvent;
+    if (event === null || this._attackResolved || this._attackRequirement === null) return;
+
+    const req = this._attackRequirement;
+
+    if (req === "hold") {
+      if (panicInput) {
+        this._handleAttackFail(event, "baited");
+      }
+      return;
+    }
+
+    let success = false;
+    if (req === "shake" && shakeBurst) success = true;
+    if (req === "flip" && flipTriggered) success = true;
+    if (req === "tilt_left" && tiltFraction < -0.55) success = true;
+    if (req === "tilt_right" && tiltFraction > 0.55) success = true;
+
+    if (!success) return;
+
+    this._attackResolved = true;
+    gameState.combo += 1;
+    gameState.bestCombo = Math.max(gameState.bestCombo, gameState.combo);
+
+    const comboBonus = 30 + gameState.combo * 12;
+    gameState.score += comboBonus;
+
+    if (event === "heat_burst") {
+      gameState.heat = Math.max(0, gameState.heat - 16);
+    } else if (event === "pressure_crash") {
+      gameState.pressure = Math.max(0, gameState.pressure - 22);
+    } else {
+      gameState.voltage = Math.min(MACHINE.MAX_VOLTAGE, gameState.voltage + 12);
+    }
+
+    this._showWarning(`+${comboBonus} REACTION BONUS!`, PALETTE.VOLTAGE);
+    this._triggerFlash(0.35, PALETTE.VOLTAGE);
+    EventBus.emit(Events.SPECTACLE_HIT, { type: "attack_success", event, combo: gameState.combo });
+    EventBus.emit(Events.SPECTACLE_COMBO, { combo: gameState.combo });
+    if ([5, 10, 25, 50].includes(gameState.combo)) {
+      EventBus.emit(Events.SPECTACLE_STREAK, { streak: gameState.combo });
+    }
+
+    gameState.chaosEndTime = Math.min(gameState.chaosEndTime, nowMs + 140);
+  }
+
+  private _handleAttackFail(event: ChaosEventName, reason: "timeout" | "baited") {
+    this._attackResolved = true;
+    gameState.combo = 0;
+
+    if (event === "heat_burst") {
+      gameState.heat = Math.min(MACHINE.MAX_HEAT, gameState.heat + 20);
+    } else if (event === "pressure_crash") {
+      gameState.pressure = Math.min(MACHINE.MAX_PRESSURE, gameState.pressure + 24);
+    } else if (event === "voltage_surge") {
+      gameState.pressure = Math.min(MACHINE.MAX_PRESSURE, gameState.pressure + 16);
+      gameState.heat = Math.min(MACHINE.MAX_HEAT, gameState.heat + 8);
+    } else if (event === "control_inversion") {
+      gameState.heat = Math.min(MACHINE.MAX_HEAT, gameState.heat + 12);
+    } else {
+      gameState.heat = Math.min(MACHINE.MAX_HEAT, gameState.heat + 10);
+      gameState.pressure = Math.min(MACHINE.MAX_PRESSURE, gameState.pressure + 10);
+    }
+
+    gameState.score = Math.max(0, gameState.score - 18);
+    this._showWarning(reason === "baited" ? "BAITED! WRONG MOVE" : "TOO LATE!", PALETTE.HEAT);
+    this._triggerFlash(0.45, PALETTE.HEAT);
+    this._triggerScreenShake(280, 6 * DPR);
+    EventBus.emit(Events.SPECTACLE_ACTION, { type: "attack_fail", event, reason });
   }
 
   private _updateScanline(delta: number) {

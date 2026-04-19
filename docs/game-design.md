@@ -1,329 +1,356 @@
-````md id="n8q3vd"
-# 📱⚡ OVERCLOCK PANIC: MOTION MODE
+````md id="g7p2va"
+# 📱⚡ OVERCLOCK PANIC
 
-> Don’t just play it. Handle it.
-
----
-
-## 🎯 Overview
-
-**Genre:** Arcade / Panic Management  
-**Platform:** HTML5 (Mobile-first, gyro-enabled)  
-**Session Length:** 30–90 seconds
-
-**Core Fantasy:**  
-You are physically handling an unstable overclocked machine.  
-The only way to survive is by shaking, tilting, and flipping your device.
+> React fast or the machine breaks you.
 
 ---
 
-## 🔥 Unique Hook
+# 🎯 HIGH CONCEPT
 
-This game uses **real device motion (gyro & accelerometer)** as the primary input:
+A mobile-first gyro reaction game where the player physically survives an unstable overclocked machine by responding to sudden system attacks using phone motion (tilt, shake, flip).
 
-- 📳 Shake your phone to cool the system
-- 📐 Tilt your phone to control voltage
-- 🔄 Flip your phone for emergency actions
-
-**The player doesn’t just control the machine — they physically interact with it.**
+This is not a simulation or management game.  
+This is a **reaction survival game under physical pressure**.
 
 ---
 
-## 🔁 Core Gameplay Loop
+# 💥 CORE HOOK (VERY IMPORTANT)
 
-1. Start run
-2. Machine begins generating heat, pressure, and score
-3. Player uses motion controls to stabilize the system
-4. Random chaos events disrupt control
-5. System overloads → Game Over
-6. Score is shown → instant retry
+## 🧲 HOOK STATEMENT
+
+> “The machine does not wait for you. It attacks you, and you must physically respond in under 1–3 seconds.”
 
 ---
 
-## 🧩 Core Systems
+## 🔥 WHY THIS GAME IS FUN (HOOK BREAKDOWN)
 
-### 🔥 Heat
+### 1. ⚡ REAL-WORLD MOTION CONTROL
 
-- Constantly increases over time
-- Strongly affected by voltage
-- Reduced by shaking (fan boost)
-- If maxed → MELTDOWN (Game Over)
+Player uses real phone movement:
 
----
+- Tilt = control direction
+- Shake = emergency save
+- Flip = panic response
 
-### ⚡ Voltage
-
-- Controlled via device tilt
-- Directly increases score multiplier
-- Higher voltage = faster heat gain
+👉 Unique because gameplay is physical, not virtual buttons.
 
 ---
 
-### 💨 Pressure
+### 2. 💥 TIME-CRITICAL REACTIONS
 
-- Builds up randomly
-- Must be released (via action or flip)
-- If maxed → EXPLOSION (Game Over)
+Every event has a strict reaction window:
 
----
+- 0.8s – 3s max response time
 
-## 🎮 Controls (Motion-Based)
+👉 Player constantly feels:
 
-### 📐 Tilt (Primary Control)
-
-- Tilt right → increase voltage
-- Tilt left → decrease voltage
+> “I almost failed.”
 
 ---
 
-### 📳 Shake (Cooling System)
+### 3. 🧠 ONE FOCUS RULE
 
-- Shake device → activate fan boost
-- Rapid heat reduction
+At any moment:
 
-**Risk:**
+- only ONE correct action matters
 
-- Excessive shaking may trigger instability
-
----
-
-### 🔄 Flip (Emergency Action)
-
-- Flip device (face down / upside down)
-
-**Effect (randomized):**
-
-- Reset pressure
-- Cancel active chaos event
-- OR trigger negative effect
+👉 Prevents confusion, creates clarity under pressure.
 
 ---
 
-### ⏺ Tap (Fallback)
+### 4. 🎲 UNPREDICTABLE ATTACK SYSTEM
 
-- Optional tap button for:
-  - coolant
-  - accessibility fallback
+The machine behaves like an enemy:
+
+- sudden bursts
+- fake warnings
+- inverted controls
+
+👉 Player cannot memorize patterns.
 
 ---
 
-## ⚙️ Core Formula
+### 5. 🔥 PANIC → RELIEF LOOP
 
-```ts
-heat += voltage * 0.06;
-pressure += random(0.02, 0.08);
-score += voltage * dt;
+Core emotional cycle:
+
+> Calm → Panic → Reaction → Relief → Repeat
+
+👉 This is the addiction loop.
+
+---
+
+# 🎮 CORE GAME LOOP (CLEAR & FINAL)
+
+```text
+1. CALM STATE (2–4s)
+   - machine stable but slowly increasing risk
+
+2. WARNING SIGNAL (0.5s)
+   - audio + visual alert
+
+3. ATTACK EVENT (1–3s)
+   - player must perform correct motion input
+
+4. RESOLUTION
+   - success → reward + brief calm
+   - failure → system damage
+
+5. SPEED INCREASE
+   - next event becomes faster
+
+LOOP REPEATS UNTIL DEATH
 ```
 ````
 
-Cooling:
+---
 
-```ts id="2m1lzt"
-heat -= shakePower;
-heat -= passiveCooling;
-```
+# 🎮 CORE INPUT SYSTEM
+
+## 📐 TILT (Primary Continuous Control)
+
+- Always active background control
+- Left tilt → safer mode (lower risk, lower score)
+- Right tilt → risky mode (higher score, faster heat)
+
+👉 Risk vs reward backbone
 
 ---
 
-## 🎲 Chaos Event System
+## 📳 SHAKE (Emergency Reaction)
 
-Every 10–15 seconds, a random event occurs:
+- Triggered only in specific events
+- Fast motion detection required
+- Effect:
+  - cooling
+  - system stabilization
 
-### Events List
-
-- 🔧 Fan Jam
-  → disables shake effect temporarily
-
-- ⚡ Voltage Spike
-  → sudden uncontrollable increase
-
-- 🔄 Control Inversion
-  → tilt direction reversed
-
-- 🧭 Sensor Drift
-  → tilt becomes inaccurate
-
-- 📳 Phantom Shake
-  → fake shake triggers
-
-- 🧱 Orientation Lock
-  → tilt freezes for a short time
+👉 Requires urgency, not spam
 
 ---
 
-## 🧠 Machine Personality System
+## 🔄 FLIP (Panic Action)
 
-Each run starts with a random machine type:
+- Flip phone orientation
+- Used in high severity events
+- Effect:
+  - cancel attack OR
+  - trigger random outcome
 
-### 😡 Aggressive
-
-- Faster heat gain
-- Higher score multiplier
-
----
-
-### 😴 Stable
-
-- Slower heat increase
-- Lower score
+👉 High risk, high reward
 
 ---
 
-### 🤪 Chaotic
+# ⚙️ CORE SYSTEMS
 
-- More frequent events
-- Unpredictable behavior
+## 🔥 HEAT (Failure Meter)
 
----
-
-## 💥 Failure Conditions
-
-- 🔥 Heat reaches maximum → MELTDOWN
-- 💨 Pressure reaches maximum → EXPLOSION
+- Constantly increases
+- Accelerates under high voltage
+- Max → MELTDOWN (game over)
 
 ---
 
-## 🎯 Objective
+## ⚡ VOLTAGE (Score Engine)
 
-- Survive as long as possible
-- Achieve the highest score
-
----
-
-## 🎨 UI Layout
-
-```id="t8m8r1"
-[ SCORE ]
-
-[ HEAT 🔥 BAR ]
-[ VOLTAGE ⚡ BAR ]
-[ PRESSURE 💨 BAR ]
-
-[ TILT INDICATOR ← → ]
-[ SHAKE ICON ]
-[ WARNING TEXT ]
-
-[ ENABLE MOTION BUTTON ]
-```
+- Controlled by tilt
+- Higher voltage:
+  - higher score multiplier
+  - faster heat increase
 
 ---
 
-## 💥 Juice & Feedback
+## 💨 INSTABILITY (Chaos System)
 
-### Visual
-
-- Screen shake during critical states
-- Red flashing UI
-- Tilt direction indicator
-- Glitch effects during chaos
+- Random pressure buildup
+- Triggers attack events
 
 ---
 
-### Audio
+# 🎲 ATTACK EVENTS (CORE GAMEPLAY DRIVER)
 
-- Machine hum loop
-- Increasing warning beeps
-- Distortion during overload
-- Explosion SFX
+Events are the main source of gameplay tension.
 
----
-
-### Haptics (if supported)
-
-- Vibration on:
-  - shake detection
-  - critical heat
-  - explosion
+Each event forces a **single correct reaction**:
 
 ---
 
-## ⚠️ UX Considerations
+## 🔥 HEAT BURST
 
-### Motion Permission (iOS)
-
-- Must request permission on user interaction
-
-```ts id="lqv59h"
-await DeviceMotionEvent.requestPermission();
-```
+- Screen flashes red
+- Alarm sound
+- REQUIRED ACTION: SHAKE FAST
+- FAILURE: instant heat spike
 
 ---
 
-### Fallback Support
+## ⚡ VOLTAGE SURGE
 
-- Provide touch controls if:
-  - device doesn’t support motion
-  - permission denied
-
----
-
-### Calibration
-
-- Optional: neutral tilt center at start
+- Screen distortion
+- REQUIRED ACTION: correct tilt direction
+- FAILURE: instability increase
 
 ---
 
-## 🧪 Input Detection (Simplified)
+## 💨 PRESSURE CRASH
 
-```ts
-if (acceleration > threshold) triggerShake();
-if (tilt > X) voltageUp();
-if (tilt < -X) voltageDown();
-if (deviceFlipped) triggerFlip();
-```
+- System shaking UI
+- REQUIRED ACTION: FLIP PHONE
+- FAILURE: explosion risk increase
 
 ---
 
-## ⏱️ Difficulty Scaling
+## 🔄 CONTROL INVERSION
 
-- Events occur more frequently over time
-- Heat gain increases gradually
-- Pressure spikes become stronger
-
----
-
-## 🧱 MVP Scope (Game Jam)
-
-### MUST HAVE:
-
-- Motion controls (tilt + shake)
-- Heat / Voltage / Pressure system
-- Basic UI
-- Game loop + game over
-- 2–3 chaos events
+- Tilt controls reversed temporarily
+- Player must adapt instantly
 
 ---
 
-### NICE TO HAVE:
+## 📳 PHANTOM ALERT (CONFUSION EVENT)
 
-- Flip mechanic
-- Machine personality
-- Sound & vibration polish
+- Fake warnings appear
+- No real action needed OR bait reaction
 
----
-
-## 💡 Design Pillars
-
-### 1. PHYSICAL INTERACTION
-
-The player uses real-world movement
-
-### 2. CHAOS
-
-The system becomes increasingly unstable
-
-### 3. UNPREDICTABILITY
-
-Every run feels different
-
-### 4. SHORT & ADDICTIVE
-
-Quick failure → instant retry
+👉 trains player not to panic blindly
 
 ---
 
-## 🚀 Tagline
+# ⏱️ DIFFICULTY PROGRESSION
 
-> "You don’t control the machine. You survive it."
->
-> "Don’t just play it. Handle it."
+| Time   | Behavior                       |
+| ------ | ------------------------------ |
+| 0–20s  | slow, readable attacks         |
+| 20–40s | faster reaction windows        |
+| 40–60s | mixed + overlapping signals    |
+| 60s+   | extreme chaos + shorter timers |
+
+---
+
+# 💀 FAILURE CONDITIONS
+
+Player loses if:
+
+- 🔥 Heat reaches max
+- 💨 Instability overload
+- ❌ repeated late reactions
+
+---
+
+# 🎯 SCORING SYSTEM
+
+Score increases based on:
+
+- survival time
+- correct reactions
+- high voltage risk usage
+- combo streak (no mistakes)
+
+Penalty:
+
+- wrong input
+- slow reaction
+- system damage
+
+---
+
+# 🧠 PLAYER CHALLENGE DESIGN
+
+## 1. ⏱ TIME PRESSURE
+
+Every event has strict reaction time:
+
+- 0.8s–3s max
+
+---
+
+## 2. 🎯 SINGLE TASK FOCUS
+
+Only one correct input per event:
+
+- reduces confusion
+- increases urgency
+
+---
+
+## 3. 💥 INTERRUPT-BASED GAMEPLAY
+
+Game interrupts player constantly:
+
+- no long safe periods
+- constant pressure cycles
+
+---
+
+## 4. 🎲 UNPREDICTABILITY
+
+- random event order
+- occasional fake signals
+- control inversion
+
+---
+
+# 📱 UX & MOBILE REQUIREMENTS
+
+## 🔒 Orientation
+
+- Portrait locked experience (recommended)
+- Rotation warning screen if invalid
+
+---
+
+## 📳 Motion Permission
+
+- Required for iOS / Safari
+- Prompt on start button
+
+---
+
+## 🔁 Fallback Controls
+
+- Touch buttons if motion unsupported
+
+---
+
+# 🧱 MVP SCOPE (GAME JAM READY)
+
+## MUST HAVE:
+
+- Tilt input system
+- Shake detection
+- Flip detection
+- Attack event system (3–5 events)
+- Heat system
+- Score + game over loop
+- Difficulty scaling
+
+---
+
+## NICE TO HAVE:
+
+- visual glitch effects
+- vibration feedback
+- sound intensity scaling
+- machine personality modifiers
+
+---
+
+# 💡 DESIGN SUMMARY
+
+This game is designed around:
+
+> **fast physical reactions under unpredictable pressure with single-focus input challenges**
+
+The fun comes from:
+
+- panic
+- reaction speed
+- clutch survival moments
+
+NOT from simulation complexity.
+
+---
+
+# 🚀 FINAL HOOK LINE
+
+> “The machine attacks. You react. You survive… or you fail in seconds.”

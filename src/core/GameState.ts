@@ -12,6 +12,8 @@ class GameState {
   // ── Score ──────────────────────────────────────────────────────────────────
   score = 0;
   bestScore = 0;
+  combo = 0;
+  bestCombo = 0;
 
   // ── Input state ───────────────────────────────────────────────────────────
   shakePower = 0;
@@ -55,6 +57,7 @@ class GameState {
     this.voltage = MACHINE.INITIAL_VOLTAGE;
     this.pressure = 0;
     this.score = 0;
+    this.combo = 0;
     this.shakePower = 0;
     this.tiltAngle = 0;
     this.flipTriggered = false;

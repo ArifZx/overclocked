@@ -125,21 +125,19 @@ export const MACHINE_CONFIGS = {
 
 // ─── Chaos events ─────────────────────────────────────────────────────────────
 export const CHAOS = {
-  MIN_INTERVAL_MS: 10_000,
-  MAX_INTERVAL_MS: 15_000,
-  DURATION_MS: 5_000,
-  /** Time scaling to shorten interval as game progresses */
-  SCALING_START_S: 30,
-  SCALING_FACTOR: 0.9,
+  MIN_INTERVAL_MS: 1_400,
+  MAX_INTERVAL_MS: 4_000,
+  MIN_WINDOW_MS: 800,
+  MAX_WINDOW_MS: 3_000,
+  WARNING_MS: 500,
 };
 
 export const CHAOS_EVENTS = [
-  "fan_jam",
-  "voltage_spike",
+  "heat_burst",
+  "voltage_surge",
+  "pressure_crash",
   "control_inversion",
-  "sensor_drift",
-  "phantom_shake",
-  "orientation_lock",
+  "phantom_alert",
 ] as const;
 
 export type ChaosEventName = (typeof CHAOS_EVENTS)[number];

@@ -4,12 +4,11 @@ import { gameState } from "../core/GameState";
 import { EventBus, Events } from "../core/EventBus";
 
 const CHAOS_LABELS: Record<ChaosEventName, string> = {
-  fan_jam: "🔧 FAN JAM",
-  voltage_spike: "⚡ VOLTAGE SPIKE",
+  heat_burst: "🔥 HEAT BURST",
+  voltage_surge: "⚡ VOLTAGE SURGE",
+  pressure_crash: "💨 PRESSURE CRASH",
   control_inversion: "🔄 CONTROL INVERSION",
-  sensor_drift: "🧭 SENSOR DRIFT",
-  phantom_shake: "📳 PHANTOM SHAKE",
-  orientation_lock: "🧱 ORIENTATION LOCK",
+  phantom_alert: "📳 PHANTOM ALERT",
 };
 
 export { CHAOS_LABELS };
@@ -48,25 +47,31 @@ export class ChaosSystem {
   }
 
   private _scheduleNext(nowMs: number) {
-    const elapsed = (nowMs - this._gameStartTime) / 1000;
-    // Interval shrinks as game goes on (minimum 5 s)
-    const scalingFactor =
-      elapsed > CHAOS.SCALING_START_S
-        ? Math.pow(CHAOS.SCALING_FACTOR, (elapsed - CHAOS.SCALING_START_S) / 10)
-        : 1;
+    const elapsed = Math.max(0, (nowMs - this._gameStartTime) / 1000);
+    const ramp = Math.min(1, elapsed / 60);
+    const baseMin = CHAOS.MAX_INTERVAL_MS + (CHAOS.MIN_INTERVAL_MS - CHAOS.MAX_INTERVAL_MS) * ramp;
+    const baseMax =
+      CHAOS.MAX_INTERVAL_MS + (CHAOS.MIN_INTERVAL_MS * 1.6 - CHAOS.MAX_INTERVAL_MS) * ramp;
 
     const chaosMult = gameState.machineType === MACHINE_TYPES.CHAOTIC ? 0.6 : 1;
 
-    const minInterval = CHAOS.MIN_INTERVAL_MS * scalingFactor * chaosMult;
-    const maxInterval = CHAOS.MAX_INTERVAL_MS * scalingFactor * chaosMult;
+    const minInterval = Math.max(900, baseMin * chaosMult);
+    const maxInterval = Math.max(minInterval + 200, baseMax * chaosMult);
     const interval = minInterval + Math.random() * (maxInterval - minInterval);
     this._nextEventTime = nowMs + interval;
   }
 
   private _triggerEvent(nowMs: number) {
+    const elapsed = Math.max(0, (nowMs - this._gameStartTime) / 1000);
+    const ramp = Math.min(1, elapsed / 60);
+    const windowMin = CHAOS.MAX_WINDOW_MS + (CHAOS.MIN_WINDOW_MS - CHAOS.MAX_WINDOW_MS) * ramp;
+    const windowMax =
+      CHAOS.MAX_WINDOW_MS + (CHAOS.MIN_WINDOW_MS * 1.45 - CHAOS.MAX_WINDOW_MS) * ramp;
+    const reactionWindow = windowMin + Math.random() * (windowMax - windowMin);
+
     const pick = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
     gameState.activeChaosEvent = pick;
-    gameState.chaosEndTime = nowMs + CHAOS.DURATION_MS;
+    gameState.chaosEndTime = nowMs + reactionWindow;
     EventBus.emit(Events.CHAOS_START, { event: pick });
     EventBus.emit(Events.SPECTACLE_HIT, { type: "chaos", event: pick });
   }

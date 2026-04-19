@@ -90,11 +90,19 @@ export class GameOver extends Scene {
       })
       .setOrigin(0.5, 0.5);
 
+    this.add
+      .text(cx, st + uh * 0.7, `BEST COMBO: x${gameState.bestCombo}`, {
+        fontSize: UI.MACHINE_FS,
+        fontFamily: "monospace",
+        color: "#ffcc00",
+      })
+      .setOrigin(0.5, 0.5);
+
     // Restart button
     const bw = GAME.WIDTH * 0.55;
     const bh = 52 * DPR;
     const bx = cx - bw / 2;
-    const by = st + uh * 0.76;
+    const by = st + uh * 0.79;
 
     const btnBg = this.add.graphics();
     btnBg.fillStyle(PALETTE.VOLTAGE, 0.9);

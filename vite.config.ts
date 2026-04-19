@@ -9,6 +9,7 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   server: {
+    allowedHosts: ["nonseptate-overdiffusely-savannah.ngrok-free.dev"],
     watch: {
       ignored: ["**/.agents/**", "**/.github/**"],
     },
