@@ -9,12 +9,17 @@
     />
     <!-- Disable iOS tap highlight and double-tap zoom -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Overclock Panic</title>
   </head>
 
   <body>
     <div id="app"></div>
+    <script>
+      // Some Phaser bundles expect a Node-like global in browser.
+      globalThis.global = globalThis;
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

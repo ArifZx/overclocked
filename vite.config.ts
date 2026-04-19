@@ -1,13 +1,16 @@
 import { defineConfig } from "vite-plus";
-// import { replacePlugin } from "rolldown/plugins";
-// import path from "path";
-// import { fileURLToPath } from "url";
-// import { dirname } from "path";
+import { replacePlugin } from "rolldown/plugins";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = dirname(__filename);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
+  define: {
+    global: "globalThis",
+  },
   server: {
     allowedHosts: ["nonseptate-overdiffusely-savannah.ngrok-free.dev"],
     watch: {
@@ -16,7 +19,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // phaser: path.resolve(__dirname, "node_modules/phaser/src/phaser-esm.js"),
+      phaser: path.resolve(__dirname, "node_modules/phaser/src/phaser-no-physics.js"),
     },
   },
   staged: {
@@ -27,18 +30,28 @@ export default defineConfig({
   build: {
     minify: true,
     rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "phaser",
+              test: /[\\/]node_modules[\\/]phaser[\\/]/,
+            },
+          ],
+        },
+      },
       treeshake: true,
       plugins: [
-        // replacePlugin({
-        //   "typeof CANVAS_RENDERER": JSON.stringify(true),
-        //   "typeof WEBGL_RENDERER": JSON.stringify(true),
-        //   "typeof WEBGL_DEBUG": JSON.stringify(false),
-        //   "typeof EXPERIMENTAL": JSON.stringify(false),
-        //   "typeof PLUGIN_3D": JSON.stringify(false),
-        //   "typeof PLUGIN_CAMERA3D": JSON.stringify(false),
-        //   "typeof PLUGIN_FBINSTANT": JSON.stringify(false),
-        //   "typeof FEATURE_SOUND": JSON.stringify(true),
-        // }),
+        replacePlugin({
+          "typeof CANVAS_RENDERER": JSON.stringify(true),
+          "typeof WEBGL_RENDERER": JSON.stringify(true),
+          "typeof WEBGL_DEBUG": JSON.stringify(false),
+          "typeof EXPERIMENTAL": JSON.stringify(false),
+          "typeof PLUGIN_3D": JSON.stringify(false),
+          "typeof PLUGIN_CAMERA3D": JSON.stringify(false),
+          "typeof PLUGIN_FBINSTANT": JSON.stringify(false),
+          "typeof FEATURE_SOUND": JSON.stringify(true),
+        }),
       ],
     },
   },
