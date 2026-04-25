@@ -1,3 +1,14 @@
+# Copilot Instructions
+
+Read [AGENTS.md](../AGENTS.md) first. It is the canonical project guide for this repository.
+
+Immediate project rules:
+
+- Use Vite+ commands such as `vp install`, `vp dev`, `vp check`, and `vp build`.
+- Do not use `npm`, `pnpm`, or `yarn` directly.
+- Use named imports from `phaser`; never `import * as Phaser from "phaser"`.
+- Treat [src/core/Constants.ts](../src/core/Constants.ts) as the source of truth for gameplay tuning and scaled UI values.
+- Keep iOS motion permission handling aligned with [src/scenes/Preloader.ts](../src/scenes/Preloader.ts) and [src/systems/MotionSystem.ts](../src/systems/MotionSystem.ts).
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
