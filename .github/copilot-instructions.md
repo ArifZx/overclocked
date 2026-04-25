@@ -96,14 +96,4 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 
 - [ ] Run `vp install` after pulling remote changes and before getting started.
 - [ ] Run `vp check` and `vp test` to validate changes.
-
-## Phaser Import Style (Project Rule)
-
-- Do not use namespace imports from Phaser.
-- Do not write `import * as Phaser from "phaser"`.
-- Do not use `Phaser.`-prefixed member access in source files.
-- Always use explicit named imports from `phaser`, for example:
-  - `import { Scene, Game, AUTO, Scale } from "phaser"`
-  - `import { Events as PhaserEvents, type GameObjects } from "phaser"`
-- Prefer type-only imports where relevant (`import type { ... } from "phaser"`).
 <!--VITE PLUS END-->

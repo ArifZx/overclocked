@@ -2,13 +2,17 @@ import { Scene } from "phaser";
 import { GAME, PALETTE, UI, DPR } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
+import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 
 export class GameOver extends Scene {
+  private _music!: MachineMusicSystem;
+
   constructor() {
     super("GameOver");
   }
 
   create() {
+    this._music = new MachineMusicSystem(this);
     const cx = GAME.WIDTH / 2;
     const st = UI.SAFE_TOP;
     const uh = UI.USABLE_H;
@@ -141,6 +145,7 @@ export class GameOver extends Scene {
     });
     btnZone.on("pointerdown", () => this._restart());
 
+    this._music.start("game_over");
     this.events.on("shutdown", this._cleanup, this);
     this.cameras.main.fadeIn(400, 0, 0, 0);
   }
@@ -167,6 +172,7 @@ export class GameOver extends Scene {
   }
 
   private _restart() {
+    this._music.stop();
     gameState.reset();
     EventBus.emit(Events.GAME_RESTART);
     this.cameras.main.fadeOut(300, 0, 0, 0);
@@ -175,7 +181,7 @@ export class GameOver extends Scene {
     });
   }
 
-  private _cleanup() {
-    // No EventBus listeners to remove in this scene — kept for convention
-  }
+  private _cleanup = () => {
+    this._music.stop();
+  };
 }

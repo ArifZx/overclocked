@@ -1,9 +1,10 @@
-import { Scene, type GameObjects } from "phaser";
-import { GAME, PALETTE, UI, MACHINE, DPR, MACHINE_CONFIGS } from "../core/Constants";
-import type { ChaosEventName } from "../core/Constants";
+import { Scene, type GameObjects, type Time } from "phaser";
+import { GAME, PALETTE, UI, MACHINE, DPR, MACHINE_CONFIGS, MACHINE_COMMS } from "../core/Constants";
+import type { ChaosEventName, MachineCommSignal } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
 import { MotionSystem } from "../systems/MotionSystem";
+import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 import { ChaosSystem, CHAOS_LABELS } from "../systems/ChaosSystem";
 
 // ─── UI helper interfaces ─────────────────────────────────────────────────────
@@ -32,12 +33,14 @@ export class Game extends Scene {
   // ── Systems ────────────────────────────────────────────────────────────────
   private _motion!: MotionSystem;
   private _chaos!: ChaosSystem;
+  private _music!: MachineMusicSystem;
 
   // ── UI objects ─────────────────────────────────────────────────────────────
   private _heatBar!: Bar;
   private _voltageBar!: Bar;
   private _pressureBar!: Bar;
   private _scoreText!: GameObjects.Text;
+  private _commsText!: GameObjects.Text;
   private _tiltNeedle!: GameObjects.Graphics;
   private _warningText!: GameObjects.Text;
   private _chaosText!: GameObjects.Text;
@@ -79,6 +82,7 @@ export class Game extends Scene {
   private _attackResolved = false;
   private _attackRequirement: AttackRequirement | null = null;
   private _tiltTargetDir: -1 | 1 = 1;
+  private readonly _commPulseEvents = new Set<Time.TimerEvent>();
 
   constructor() {
     super("Game");
@@ -93,6 +97,7 @@ export class Game extends Scene {
     this._createTouchControls();
     this._createFlashOverlay();
 
+    this._music = new MachineMusicSystem(this);
     this._motion = new MotionSystem();
     this._motion.start();
 
@@ -106,6 +111,8 @@ export class Game extends Scene {
 
     this.events.on("shutdown", this._cleanup, this);
 
+    this._music.start("game");
+    this._bootMachineComms();
     EventBus.emit(Events.SPECTACLE_ENTRANCE);
     this.cameras.main.fadeIn(500, 0, 0, 0);
   }
@@ -159,9 +166,16 @@ export class Game extends Scene {
     gameState.heat = Math.max(0, Math.min(MACHINE.MAX_HEAT, gameState.heat + dHeat));
 
     // ── Pressure ───────────────────────────────────────────────────────────
-    const pRate =
+    const pressureBaseGain =
       MACHINE.PRESSURE_MIN + Math.random() * (MACHINE.PRESSURE_MAX - MACHINE.PRESSURE_MIN);
-    gameState.pressure += pRate * dt;
+    const safeTilt = Math.max(0, -tiltFraction);
+    const riskyTilt = Math.max(0, tiltFraction);
+    const pressureGain =
+      pressureBaseGain + (vol * 0.65 + riskyTilt * 0.35) * MACHINE.PRESSURE_RISK_GAIN;
+    const pressureVent =
+      MACHINE.PRESSURE_PASSIVE_VENT + safeTilt * MACHINE.PRESSURE_SAFE_VENT_BONUS;
+
+    gameState.pressure += (pressureGain - pressureVent) * dt;
 
     gameState.pressure = Math.max(0, Math.min(MACHINE.MAX_PRESSURE, gameState.pressure));
 
@@ -211,7 +225,7 @@ export class Game extends Scene {
   }
 
   // ─── EventBus handlers ────────────────────────────────────────────────────
-  private _onChaosStart(data: { event: ChaosEventName }) {
+  private _onChaosStart = (data: { event: ChaosEventName }) => {
     this._attackResolved = false;
     this._chaosText.setText(`⚠ ${CHAOS_LABELS[data.event]}`);
     this._chaosText.setAlpha(1);
@@ -219,26 +233,33 @@ export class Game extends Scene {
     this._attackText.setText(this._promptForRequirement(this._attackRequirement));
     this._attackText.setAlpha(1);
     this._attackTimerText.setAlpha(1);
+    this._playCommSignal(MACHINE_COMMS.EVENTS[data.event]);
     this._triggerFlash(0.4, PALETTE.WARNING);
     this._triggerScreenShake(400, 4 * DPR);
     EventBus.emit(Events.SPECTACLE_HIT, { type: "chaos" });
-  }
+  };
 
-  private _onChaosEnd(data: { event: ChaosEventName }) {
+  private _onChaosEnd = (data: { event: ChaosEventName }) => {
     if (!this._attackResolved) {
       this._handleAttackFail(data.event, "timeout");
     }
     this._attackRequirement = null;
     this.tweens.add({ targets: this._chaosText, alpha: 0, duration: 500 });
     this.tweens.add({ targets: this._attackText, alpha: 0, duration: 350 });
-    this.tweens.add({ targets: this._attackTimerText, alpha: 0, duration: 350 });
-  }
+    this.tweens.add({
+      targets: this._attackTimerText,
+      alpha: 0,
+      duration: 350,
+    });
+    this._queueIdleComm(320);
+  };
 
-  private _onGameOver() {
+  private _onGameOver = () => {
     if (gameState.score > gameState.bestScore) {
       gameState.bestScore = Math.floor(gameState.score);
     }
     const color = gameState.deathReason === "meltdown" ? PALETTE.HEAT : PALETTE.PRESSURE;
+    this._playCommSignal(MACHINE_COMMS.GAME_OVER[gameState.deathReason ?? "meltdown"]);
     this._triggerFlash(1.0, color);
     this._triggerScreenShake(600, 12 * DPR);
     this.time.delayedCall(900, () => {
@@ -247,7 +268,7 @@ export class Game extends Scene {
         this.scene.start("GameOver");
       });
     });
-  }
+  };
 
   // ─── UI creation ──────────────────────────────────────────────────────────
   private _createBackground() {
@@ -301,6 +322,26 @@ export class Game extends Scene {
       })
       .setOrigin(0.5, 0.5)
       .setAlpha(0.8);
+
+    this.add
+      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.095), "SYS:// AUDIO ENCODER", {
+        fontSize: UI.VALUE_FS,
+        fontFamily: "monospace",
+        color: PALETTE.TEXT_DIM,
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0.75);
+
+    this._commsText = this.add
+      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.13), MACHINE_COMMS.IDLE_TEXT, {
+        fontSize: UI.VALUE_FS,
+        fontFamily: "monospace",
+        color: MACHINE_COMMS.IDLE_COLOR,
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0.95);
 
     this._heatBar = this._makeBar(
       st + uh * UI.HEAT_Y_FRAC,
@@ -515,7 +556,16 @@ export class Game extends Scene {
     });
 
     this._drawTouchBtn = drawBtn;
-    this._tcPositions = { lx: cx - bw * 1.2, rx: cx + bw * 1.2, sx: cx, ty, bh, bw, fbw, fbh };
+    this._tcPositions = {
+      lx: cx - bw * 1.2,
+      rx: cx + bw * 1.2,
+      sx: cx,
+      ty,
+      bh,
+      bw,
+      fbw,
+      fbh,
+    };
   }
 
   private _createFlashOverlay() {
@@ -649,7 +699,12 @@ export class Game extends Scene {
 
     this._showWarning(`+${comboBonus} REACTION BONUS!`, PALETTE.VOLTAGE);
     this._triggerFlash(0.35, PALETTE.VOLTAGE);
-    EventBus.emit(Events.SPECTACLE_HIT, { type: "attack_success", event, combo: gameState.combo });
+    this._playCommSignal(MACHINE_COMMS.SUCCESS);
+    EventBus.emit(Events.SPECTACLE_HIT, {
+      type: "attack_success",
+      event,
+      combo: gameState.combo,
+    });
     EventBus.emit(Events.SPECTACLE_COMBO, { combo: gameState.combo });
     if ([5, 10, 25, 50].includes(gameState.combo)) {
       EventBus.emit(Events.SPECTACLE_STREAK, { streak: gameState.combo });
@@ -680,7 +735,55 @@ export class Game extends Scene {
     this._showWarning(reason === "baited" ? "BAITED! WRONG MOVE" : "TOO LATE!", PALETTE.HEAT);
     this._triggerFlash(0.45, PALETTE.HEAT);
     this._triggerScreenShake(280, 6 * DPR);
-    EventBus.emit(Events.SPECTACLE_ACTION, { type: "attack_fail", event, reason });
+    this._playCommSignal(MACHINE_COMMS.FAIL[reason]);
+    EventBus.emit(Events.SPECTACLE_ACTION, {
+      type: "attack_fail",
+      event,
+      reason,
+    });
+  }
+
+  private _bootMachineComms() {
+    this._playCommSignal(MACHINE_COMMS.STARTUP);
+    this._queueIdleComm(900);
+  }
+
+  private _playCommSignal(signal: MachineCommSignal) {
+    this._setMachineComm(signal.text, signal.color);
+    this._clearCommPulseEvents();
+
+    for (const pulse of signal.pulses) {
+      let timerEvent: Time.TimerEvent;
+      timerEvent = this.time.delayedCall(pulse.at, () => {
+        this._commPulseEvents.delete(timerEvent);
+        this.sound.play("beep", {
+          rate: pulse.rate,
+          detune: pulse.detune,
+          volume: pulse.volume,
+        });
+      });
+      this._commPulseEvents.add(timerEvent);
+    }
+  }
+
+  private _queueIdleComm(delayMs: number) {
+    this.time.delayedCall(delayMs, () => {
+      if (gameState.activeChaosEvent !== null || gameState.gameOver) return;
+      this._setMachineComm(MACHINE_COMMS.IDLE_TEXT, MACHINE_COMMS.IDLE_COLOR);
+    });
+  }
+
+  private _setMachineComm(text: string, color: string) {
+    this._commsText.setText(text);
+    this._commsText.setColor(color);
+    this._commsText.setAlpha(0.95);
+  }
+
+  private _clearCommPulseEvents() {
+    for (const event of this._commPulseEvents) {
+      event.remove(false);
+    }
+    this._commPulseEvents.clear();
   }
 
   private _updateScanline(delta: number) {
@@ -762,11 +865,13 @@ export class Game extends Scene {
     );
   }
 
-  private _cleanup() {
+  private _cleanup = () => {
+    this._clearCommPulseEvents();
+    this._music.stop();
     this._motion.stop();
     EventBus.off(Events.CHAOS_START, this._onChaosStart, this);
     EventBus.off(Events.CHAOS_END, this._onChaosEnd, this);
     EventBus.off(Events.MELTDOWN, this._onGameOver, this);
     EventBus.off(Events.EXPLOSION, this._onGameOver, this);
-  }
+  };
 }

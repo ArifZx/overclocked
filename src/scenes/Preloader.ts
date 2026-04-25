@@ -1,6 +1,7 @@
 import { Scene, type GameObjects } from "phaser";
 import { GAME, PALETTE, UI, DPR } from "../core/Constants";
 import { MotionSystem } from "../systems/MotionSystem";
+import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 import { gameState } from "../core/GameState";
 
 type TextField = GameObjects.Text;
@@ -18,6 +19,7 @@ export class Preloader extends Scene {
   private _btnText!: TextField;
   private _hint!: TextField;
   private _machineGfx!: GfxField;
+  private _music!: MachineMusicSystem;
   private _flickerTimer = 0;
   private _btnPressed = false;
 
@@ -25,13 +27,30 @@ export class Preloader extends Scene {
     super("Preloader");
   }
 
+  preload() {
+    this.load.audio("beep", ["sounds/beep.ogg", "sounds/beep.m4a", "sounds/beep.mp3"]);
+  }
+
   create() {
+    this._music = new MachineMusicSystem(this);
     this._createBackground();
     this._createMachineArt();
     this._createTitle();
     this._createButton();
     this._createFloatingParticles();
     this._animateEntrance();
+
+    if (this.sound.locked) {
+      this.sound.once("unlocked", () => {
+        if (!this._btnPressed) {
+          this._music.start("landing");
+        }
+      });
+    } else {
+      this._music.start("landing");
+    }
+
+    this.events.on("shutdown", this._cleanup, this);
   }
 
   update(_time: number, delta: number) {
@@ -192,7 +211,7 @@ export class Preloader extends Scene {
     const zone = this.add.zone(cx, by + bh / 2, bw, bh).setInteractive();
     zone.on("pointerdown", () => {
       if (this._btnPressed) return;
-      this._onButtonPress();
+      void this._onButtonPress();
     });
     zone.on("pointerover", () => this._drawBtn(true));
     zone.on("pointerout", () => this._drawBtn(false));
@@ -241,6 +260,7 @@ export class Preloader extends Scene {
   }
 
   private _launchGame() {
+    this._music.stop();
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start("Game");
@@ -250,12 +270,37 @@ export class Preloader extends Scene {
   private _animateEntrance() {
     const subtitle = this.data.get("subtitle") as TextField;
 
-    this.tweens.add({ targets: this._title, alpha: 1, duration: 600, delay: 200 });
+    this.tweens.add({
+      targets: this._title,
+      alpha: 1,
+      duration: 600,
+      delay: 200,
+    });
     this.tweens.add({ targets: subtitle, alpha: 1, duration: 600, delay: 500 });
-    this.tweens.add({ targets: this._tagline, alpha: 1, duration: 600, delay: 800 });
-    this.tweens.add({ targets: this._btnBg, alpha: 1, duration: 600, delay: 1100 });
-    this.tweens.add({ targets: this._btnText, alpha: 1, duration: 600, delay: 1100 });
-    this.tweens.add({ targets: this._hint, alpha: 0.7, duration: 600, delay: 1400 });
+    this.tweens.add({
+      targets: this._tagline,
+      alpha: 1,
+      duration: 600,
+      delay: 800,
+    });
+    this.tweens.add({
+      targets: this._btnBg,
+      alpha: 1,
+      duration: 600,
+      delay: 1100,
+    });
+    this.tweens.add({
+      targets: this._btnText,
+      alpha: 1,
+      duration: 600,
+      delay: 1100,
+    });
+    this.tweens.add({
+      targets: this._hint,
+      alpha: 0.7,
+      duration: 600,
+      delay: 1400,
+    });
   }
 
   private _createFloatingParticles() {
@@ -289,4 +334,8 @@ export class Preloader extends Scene {
       });
     }
   }
+
+  private _cleanup = () => {
+    this._music.stop();
+  };
 }

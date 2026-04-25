@@ -164,6 +164,40 @@ LOOP REPEATS UNTIL DEATH
 
 - Random pressure buildup
 - Triggers attack events
+- Safe tilt should slowly vent pressure; risky tilt should build it faster
+
+---
+
+# 🔊 MACHINE COMMUNICATION LAYER
+
+The machine only has one raw beep sample.
+
+Its "voice" is created by encoding meaning through:
+
+- rhythm
+- spacing
+- playback rate / pitch
+- short terminal-style text bursts on screen
+
+This means the machine should feel like an old onboard computer, not a modern UI assistant.
+
+## AUDIO LANGUAGE RULES
+
+- short rising beeps = warning / attention
+- slow low beeps = damage / failure
+- repeated hot pings = thermal danger
+- uneven fake pings = phantom bait / false alert
+- every real event should announce both the threat and the required reaction
+
+Format target:
+
+> BEEP PATTERN + TERMINAL TEXT = one readable machine message under pressure
+
+Example terminal text style:
+
+- `THERMAL SPIKE // SHAKE TO PURGE`
+- `PRESSURE DROP // FLIP TO VENT`
+- `PHANTOM SIGNAL // HOLD STEADY`
 
 ---
 
@@ -178,7 +212,7 @@ Each event forces a **single correct reaction**:
 ## 🔥 HEAT BURST
 
 - Screen flashes red
-- Alarm sound
+- machine comms: fast repeated hot beeps + `THERMAL SPIKE // SHAKE TO PURGE`
 - REQUIRED ACTION: SHAKE FAST
 - FAILURE: instant heat spike
 
@@ -187,6 +221,7 @@ Each event forces a **single correct reaction**:
 ## ⚡ VOLTAGE SURGE
 
 - Screen distortion
+- machine comms: rising pitch sweep + `VOLTAGE DRIFT // TILT WITH FLOW`
 - REQUIRED ACTION: correct tilt direction
 - FAILURE: instability increase
 
@@ -195,6 +230,7 @@ Each event forces a **single correct reaction**:
 ## 💨 PRESSURE CRASH
 
 - System shaking UI
+- machine comms: heavy low double-beep + `PRESSURE DROP // FLIP TO VENT`
 - REQUIRED ACTION: FLIP PHONE
 - FAILURE: explosion risk increase
 
@@ -203,6 +239,7 @@ Each event forces a **single correct reaction**:
 ## 🔄 CONTROL INVERSION
 
 - Tilt controls reversed temporarily
+- machine comms: alternating high-low glitch beep + `CONTROL MAP FLIPPED // COUNTER-TILT`
 - Player must adapt instantly
 
 ---
@@ -210,9 +247,20 @@ Each event forces a **single correct reaction**:
 ## 📳 PHANTOM ALERT (CONFUSION EVENT)
 
 - Fake warnings appear
+- machine comms: suspicious uneven pings + `PHANTOM SIGNAL // HOLD STEADY`
 - No real action needed OR bait reaction
 
 👉 trains player not to panic blindly
+
+---
+
+## EVENT RESOLUTION COMMS
+
+- success = clean positive double-beep + `WINDOW CLOSED // SYSTEM STABLE`
+- timeout = low warning pair + `NO INPUT // DAMAGE REGISTERED`
+- baited = broken fake-out pattern + `FALSE POSITIVE // PANIC DETECTED`
+- meltdown = collapsing low sequence + `THERMAL FAIL // MELTDOWN CONFIRMED`
+- explosion = rupture-style burst + `PRESSURE FAIL // CORE BREACH`
 
 ---
 
