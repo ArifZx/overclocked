@@ -692,7 +692,12 @@ export class Game extends Scene {
     if (nowMs < gameState.partyModeNextRollTime) return;
 
     gameState.partyModeNextRollTime = nowMs + CHAOS.PARTY_MODE_ROLL_MS;
-    if (Math.random() > CHAOS.PARTY_MODE_CHANCE) return;
+    const partyModeChance =
+      gameState.heatPct() >= CHAOS.PARTY_MODE_HIGH_HEAT_THRESHOLD
+        ? CHAOS.PARTY_MODE_HIGH_HEAT_CHANCE
+        : CHAOS.PARTY_MODE_MIN_CHANCE +
+          Math.random() * (CHAOS.PARTY_MODE_MAX_CHANCE - CHAOS.PARTY_MODE_MIN_CHANCE);
+    if (Math.random() > partyModeChance) return;
 
     gameState.partyModeActive = true;
     gameState.partyModeEndTime = nowMs + CHAOS.PARTY_MODE_DURATION_MS;
