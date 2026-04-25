@@ -114,6 +114,11 @@ export const MACHINE = {
   FLIP_BETA_THRESHOLD: 130,
   /** how long flip effect lasts (ms) */
   FLIP_DURATION: 800,
+
+  /** desktop keyboard tilt delta per frame */
+  KEYBOARD_TILT_STEP: 3.8,
+  /** desktop keyboard shake impulse */
+  KEYBOARD_SHAKE_POWER: 14,
 };
 
 // ─── Machine personality types ────────────────────────────────────────────────
