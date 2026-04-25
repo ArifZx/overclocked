@@ -107,6 +107,10 @@ export const MACHINE = {
   KEYBOARD_TILT_STEP: 3.8,
   /** desktop keyboard shake impulse */
   KEYBOARD_SHAKE_POWER: 14,
+  /** wrong-direction tilt fraction that starts attack-window heat punishment */
+  WRONG_TILT_PUNISH_THRESHOLD: 0.35,
+  /** extra heat per second while leaning hard into the wrong tilt direction */
+  WRONG_TILT_HEAT_RATE: 20,
 };
 
 // ─── Machine personality types ────────────────────────────────────────────────
@@ -139,6 +143,13 @@ export const CHAOS = {
   MIN_WINDOW_MS: 1_100,
   MAX_WINDOW_MS: 3_400,
   WARNING_MS: 500,
+  PARTY_MODE_MIN_START_MS: 20_000,
+  PARTY_MODE_ROLL_MS: 12_000,
+  PARTY_MODE_CHANCE: 0.28,
+  PARTY_MODE_DURATION_MS: 8_000,
+  PARTY_MODE_HEAT_COOLING: 9,
+  PARTY_MODE_PRESSURE_VENT: 12,
+  PARTY_MODE_SCORE_MULT: 1.35,
 };
 
 export type LevelObjective = {

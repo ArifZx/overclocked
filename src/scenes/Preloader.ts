@@ -33,10 +33,14 @@ export class Preloader extends Scene {
   private _levelOptionTexts: TextField[] = [];
   private _levelOptionHints: TextField[] = [];
   private _levelOptionZones: GameObjects.Zone[] = [];
+  private _permissionModalTargets: Array<GfxField | TextField> = [];
+  private _permissionModalZones: GameObjects.Zone[] = [];
   private _music!: MachineMusicSystem;
   private _flickerTimer = 0;
   private _btnPressed = false;
   private _selectionOpen = false;
+  private _permissionModalOpen = false;
+  private _pendingLevel: number | null = null;
 
   constructor() {
     super("Preloader");
@@ -49,11 +53,15 @@ export class Preloader extends Scene {
   create() {
     this._btnPressed = false;
     this._selectionOpen = false;
+    this._permissionModalOpen = false;
+    this._pendingLevel = null;
     this._flickerTimer = 0;
     this._levelOptionBgs = [];
     this._levelOptionTexts = [];
     this._levelOptionHints = [];
     this._levelOptionZones = [];
+    this._permissionModalTargets = [];
+    this._permissionModalZones = [];
 
     this._music = new MachineMusicSystem(this);
     this._createBackground();
@@ -61,6 +69,7 @@ export class Preloader extends Scene {
     this._createTitle();
     this._createButton();
     this._createLevelSelection();
+    this._createPermissionModal();
     this._createFloatingParticles();
     this._animateEntrance();
 
@@ -229,13 +238,11 @@ export class Preloader extends Scene {
     this._hint.setOrigin(0.5, 0);
     this._hint.setAlpha(0);
 
-    // Determine if permission needed
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const needsPermission = typeof (DeviceOrientationEvent as any).requestPermission === "function";
+    const needsPermission = MotionSystem.needsPermission();
     this._btnText.setText("⚡  SELECT LEVEL");
     this._hint.setText(
       needsPermission
-        ? "Pick a stage, then enable motion or use touch fallback"
+        ? "Pick a stage, then confirm motion access or use touch fallback"
         : "Pick a stage before launching the run",
     );
 
@@ -323,6 +330,104 @@ export class Preloader extends Scene {
     });
   }
 
+  private _createPermissionModal() {
+    const cx = GAME.WIDTH / 2;
+    const panelW = Math.min(UI.CONTENT_W, GAME.WIDTH * 0.84);
+    const panelH = Math.min(UI.USABLE_H * 0.34, 240 * PX);
+    const panelX = cx - panelW / 2;
+    const panelY = UI.SAFE_TOP + UI.USABLE_H * 0.34;
+    const buttonW = panelW * 0.72;
+    const buttonH = Math.max(40, Math.round(46 * PX));
+    const primaryY = panelY + panelH * 0.58;
+    const secondaryY = panelY + panelH * 0.78;
+
+    const overlay = this.add.graphics().setAlpha(0);
+    overlay.fillStyle(0x02030a, 0.78);
+    overlay.fillRect(0, 0, GAME.WIDTH, GAME.HEIGHT);
+
+    const panel = this.add.graphics().setAlpha(0);
+    panel.fillStyle(PALETTE.PANEL, 0.96);
+    panel.fillRoundedRect(panelX, panelY, panelW, panelH, 14 * PX);
+    panel.lineStyle(1, PALETTE.PANEL_BORDER, 0.95);
+    panel.strokeRoundedRect(panelX, panelY, panelW, panelH, 14 * PX);
+
+    const title = this.add
+      .text(cx, panelY + panelH * 0.18, "ENABLE MOTION CONTROL", {
+        fontSize: `${Math.max(15, Math.round(18 * PX))}px`,
+        fontFamily: "monospace",
+        color: PALETTE.TEXT,
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0);
+
+    const body = this.add
+      .text(
+        cx,
+        panelY + panelH * 0.36,
+        "iPhone/iPad needs one extra tap before gyroscope and accelerometer can be used.",
+        {
+          fontSize: `${Math.max(11, Math.round(13 * PX))}px`,
+          fontFamily: "monospace",
+          color: PALETTE.TEXT_DIM,
+          align: "center",
+          wordWrap: { width: panelW * 0.82 },
+        },
+      )
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0);
+
+    const blocker = this.add
+      .zone(GAME.WIDTH / 2, GAME.HEIGHT / 2, GAME.WIDTH, GAME.HEIGHT)
+      .disableInteractive();
+
+    const createModalButton = (
+      y: number,
+      label: string,
+      fillColor: number,
+      textColor: string,
+      onClick: () => void,
+    ) => {
+      const bg = this.add.graphics().setAlpha(0);
+      const x = cx - buttonW / 2;
+      const text = this.add
+        .text(cx, y + buttonH / 2, label, {
+          fontSize: `${Math.max(12, Math.round(15 * PX))}px`,
+          fontFamily: "monospace",
+          color: textColor,
+          align: "center",
+        })
+        .setOrigin(0.5, 0.5)
+        .setAlpha(0);
+      const zone = this.add.zone(cx, y + buttonH / 2, buttonW, buttonH).disableInteractive();
+
+      const draw = (hover: boolean) => {
+        bg.clear();
+        bg.fillStyle(hover ? PALETTE.TEXT_HEX : fillColor, hover ? 0.95 : 0.9);
+        bg.fillRoundedRect(x, y, buttonW, buttonH, 10 * PX);
+        text.setColor(hover ? "#0a0a14" : textColor);
+      };
+
+      draw(false);
+      zone.on("pointerover", () => draw(true));
+      zone.on("pointerout", () => draw(false));
+      zone.on("pointerdown", onClick);
+
+      this._permissionModalTargets.push(bg, text);
+      this._permissionModalZones.push(zone);
+    };
+
+    createModalButton(primaryY, "ENABLE MOTION", PALETTE.VOLTAGE, "#0a0a14", () => {
+      void this._approveMotionPermission();
+    });
+    createModalButton(secondaryY, "USE TOUCH ONLY", PALETTE.PANEL_BORDER, PALETTE.TEXT, () => {
+      this._launchWithoutMotionPermission();
+    });
+
+    this._permissionModalTargets.push(overlay, panel, title, body);
+    this._permissionModalZones.push(blocker);
+  }
+
   private _drawBtn(hover: boolean) {
     const d = this.data.get("btn") as
       | { bx: number; by: number; bw: number; bh: number }
@@ -373,18 +478,65 @@ export class Preloader extends Scene {
     this._drawBtn(false);
     gameState.selectedLevel = level;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const needsPermission = typeof (DeviceOrientationEvent as any).requestPermission === "function";
-
-    if (needsPermission) {
-      this._btnText.setText(`LINKING ${getLevelLabel(level)}...`);
-      await MotionSystem.requestPermission();
-
-      if (gameState.motionPermission === "denied") {
-        this._hint.setText("Motion denied — launching with touch fallback");
-      }
+    if (MotionSystem.needsPermission() && gameState.motionPermission === "pending") {
+      this._showPermissionModal(level);
+      return;
     }
 
+    if (gameState.motionPermission === "denied") {
+      this._hint.setText("Motion unavailable — launching with touch fallback");
+    }
+
+    this._launchGame(level);
+  }
+
+  private _showPermissionModal(level: number) {
+    this._permissionModalOpen = true;
+    this._pendingLevel = level;
+    this._btnText.setText(`PREP ${getLevelLabel(level)} // SENSOR CHECK`);
+    this._hint.setText("Choose motion access for iPhone/iPad, or continue with touch controls");
+    this._hint.setAlpha(0.9);
+
+    for (const zone of this._permissionModalZones) {
+      zone.setInteractive();
+    }
+    for (const target of this._permissionModalTargets) {
+      this.tweens.add({ targets: target, alpha: 1, duration: 180 });
+    }
+  }
+
+  private _hidePermissionModal() {
+    this._permissionModalOpen = false;
+    for (const zone of this._permissionModalZones) {
+      zone.disableInteractive();
+    }
+    for (const target of this._permissionModalTargets) {
+      this.tweens.add({ targets: target, alpha: 0, duration: 150 });
+    }
+  }
+
+  private async _approveMotionPermission() {
+    const level = this._pendingLevel;
+    if (level === null || !this._permissionModalOpen) return;
+
+    this._btnText.setText(`LINKING ${getLevelLabel(level)}...`);
+    await MotionSystem.requestPermission();
+
+    if (gameState.motionPermission === "denied") {
+      this._hint.setText("Motion denied — launching with touch fallback");
+    }
+
+    this._hidePermissionModal();
+    this._launchGame(level);
+  }
+
+  private _launchWithoutMotionPermission() {
+    const level = this._pendingLevel;
+    if (level === null || !this._permissionModalOpen) return;
+
+    gameState.motionPermission = "denied";
+    this._hint.setText("Touch fallback armed — you can still play without gyro");
+    this._hidePermissionModal();
     this._launchGame(level);
   }
 
@@ -465,6 +617,8 @@ export class Preloader extends Scene {
   }
 
   private _cleanup = () => {
+    this._permissionModalOpen = false;
+    this._pendingLevel = null;
     this._music.stop();
   };
 }

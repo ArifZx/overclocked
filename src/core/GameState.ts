@@ -35,6 +35,9 @@ class GameState {
   // ── Chaos ─────────────────────────────────────────────────────────────────
   activeChaosEvent: ChaosEventName | null = null;
   chaosEndTime = 0;
+  partyModeActive = false;
+  partyModeEndTime = 0;
+  partyModeNextRollTime = 0;
 
   // ── Game lifecycle ────────────────────────────────────────────────────────
   started = false;
@@ -72,6 +75,9 @@ class GameState {
     this.flipTriggered = false;
     this.activeChaosEvent = null;
     this.chaosEndTime = 0;
+    this.partyModeActive = false;
+    this.partyModeEndTime = 0;
+    this.partyModeNextRollTime = 0;
     this.started = true;
     this.gameOver = false;
     this.deathReason = null;

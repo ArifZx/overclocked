@@ -17,6 +17,15 @@ export class MotionSystem {
   private _flipCooldown = 0;
   private _adapter: MotionInputAdapter | null = null;
 
+  static needsPermission() {
+    if (!gameState.hasTouch || typeof DeviceOrientationEvent === "undefined") {
+      return false;
+    }
+
+    const ctor = DeviceOrientationEvent as unknown as DeviceOrientationEvt;
+    return typeof ctor.requestPermission === "function";
+  }
+
   /** Call once to start listening. Pass the scene for Phaser time reference. */
   start() {
     if (!gameState.hasTouch) {
@@ -32,9 +41,7 @@ export class MotionSystem {
       return;
     }
 
-    const ctor = DeviceOrientationEvent as unknown as DeviceOrientationEvt;
-
-    if (typeof ctor.requestPermission === "function") {
+    if (MotionSystem.needsPermission()) {
       // iOS 13+ — permission was already requested in Preloader; if granted, listen
       if (gameState.motionPermission === "granted") {
         this._adapter = new MobileSensorAdapter(this);
@@ -55,14 +62,20 @@ export class MotionSystem {
       return false;
     }
 
+    if (!MotionSystem.needsPermission()) {
+      gameState.motionPermission = "not_required";
+      return true;
+    }
+
     const ctor = DeviceOrientationEvent as unknown as DeviceOrientationEvt;
-    if (typeof ctor.requestPermission !== "function") {
+    const requestPermission = ctor.requestPermission;
+    if (requestPermission === undefined) {
       gameState.motionPermission = "not_required";
       return true;
     }
 
     try {
-      const result = await ctor.requestPermission();
+      const result = await requestPermission.call(ctor);
       if (result === "granted") {
         gameState.motionPermission = "granted";
         EventBus.emit(Events.MOTION_PERMISSION_GRANTED);

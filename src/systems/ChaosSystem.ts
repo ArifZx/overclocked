@@ -33,6 +33,15 @@ export class ChaosSystem {
       this._scheduleNext(nowMs);
     }
 
+    if (gameState.partyModeActive) {
+      if (nowMs >= gameState.partyModeEndTime) {
+        gameState.partyModeActive = false;
+        gameState.partyModeEndTime = 0;
+        this._scheduleNext(nowMs);
+      }
+      return;
+    }
+
     // Start new event
     if (gameState.activeChaosEvent === null && nowMs >= this._nextEventTime) {
       this._triggerEvent(nowMs);
@@ -42,6 +51,9 @@ export class ChaosSystem {
   reset(nowMs: number) {
     gameState.activeChaosEvent = null;
     gameState.chaosEndTime = 0;
+    gameState.partyModeActive = false;
+    gameState.partyModeEndTime = 0;
+    gameState.partyModeNextRollTime = 0;
     this._gameStartTime = nowMs;
     this._scheduleNext(nowMs);
   }
