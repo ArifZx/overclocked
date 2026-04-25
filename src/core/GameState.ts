@@ -1,4 +1,4 @@
-import { MACHINE, MACHINE_TYPES, MACHINE_CONFIGS } from "./Constants";
+import { MACHINE, MACHINE_TYPES, MACHINE_CONFIGS, LEVELS } from "./Constants";
 import type { ChaosEventName } from "./Constants";
 
 export type MachineType = (typeof MACHINE_TYPES)[keyof typeof MACHINE_TYPES];
@@ -14,6 +14,11 @@ class GameState {
   bestScore = 0;
   combo = 0;
   bestCombo = 0;
+  level = LEVELS.START;
+  bestLevel = LEVELS.START;
+  selectedLevel = LEVELS.START;
+  levelElapsedMs = 0;
+  levelProgressMs = 0;
 
   // ── Input state ───────────────────────────────────────────────────────────
   shakePower = 0;
@@ -30,6 +35,9 @@ class GameState {
   // ── Chaos ─────────────────────────────────────────────────────────────────
   activeChaosEvent: ChaosEventName | null = null;
   chaosEndTime = 0;
+  partyModeActive = false;
+  partyModeEndTime = 0;
+  partyModeNextRollTime = 0;
 
   // ── Game lifecycle ────────────────────────────────────────────────────────
   started = false;
@@ -52,17 +60,24 @@ class GameState {
     return this.voltage / MACHINE.MAX_VOLTAGE;
   }
 
-  reset() {
+  reset(startLevel = this.selectedLevel) {
+    this.selectedLevel = startLevel;
     this.heat = MACHINE.INITIAL_HEAT;
     this.voltage = MACHINE.INITIAL_VOLTAGE;
     this.pressure = 0;
     this.score = 0;
     this.combo = 0;
+    this.level = startLevel;
+    this.levelElapsedMs = 0;
+    this.levelProgressMs = 0;
     this.shakePower = 0;
     this.tiltAngle = 0;
     this.flipTriggered = false;
     this.activeChaosEvent = null;
     this.chaosEndTime = 0;
+    this.partyModeActive = false;
+    this.partyModeEndTime = 0;
+    this.partyModeNextRollTime = 0;
     this.started = true;
     this.gameOver = false;
     this.deathReason = null;

@@ -1,42 +1,30 @@
 // ─── Canvas sizing ───────────────────────────────────────────────────────────
 export const DPR = Math.min(window.devicePixelRatio || 1, 2);
-const _isPortrait = window.innerHeight >= window.innerWidth;
-const _designW = _isPortrait ? 540 : 960;
-const _designH = _isPortrait ? 960 : 540;
-const _designAspect = _designW / _designH;
+const _baseW = 540;
+const _baseH = 960;
 
-const _deviceW = window.innerWidth * DPR;
-const _deviceH = window.innerHeight * DPR;
-let _canvasW: number;
-let _canvasH: number;
-if (_deviceW / _deviceH > _designAspect) {
-  _canvasW = Math.round(_deviceH * _designAspect);
-  _canvasH = _deviceH;
-} else {
-  _canvasW = _deviceW;
-  _canvasH = Math.round(_deviceW / _designAspect);
-}
+export const GAME = {
+  WIDTH: window.innerWidth,
+  HEIGHT: window.innerHeight,
+};
 
 /** Canvas pixels per design pixel — multiply all absolute sizes by PX */
-export const PX = _canvasW / _designW;
+export const PX = Math.min(GAME.WIDTH / _baseW, GAME.HEIGHT / _baseH) || 1;
 
 function _readSafeInsets() {
   const s = getComputedStyle(document.documentElement);
   const top = parseInt(s.getPropertyValue("--ogp-safe-top-inset")) || 0;
   const bottom = parseInt(s.getPropertyValue("--ogp-safe-bottom-inset")) || 0;
-  return { top: top * DPR, bottom: bottom * DPR };
+  return {
+    top,
+    bottom,
+  };
 }
 const _insets = _readSafeInsets();
 
 export const SAFE_ZONE = {
-  TOP: Math.max(_canvasH * 0.08, _insets.top),
+  TOP: Math.max(GAME.HEIGHT * 0.08, _insets.top),
   BOTTOM: _insets.bottom,
-};
-
-// ─── Game canvas ─────────────────────────────────────────────────────────────
-export const GAME = {
-  WIDTH: _canvasW,
-  HEIGHT: _canvasH,
 };
 
 // ─── Color palette ───────────────────────────────────────────────────────────
@@ -114,6 +102,15 @@ export const MACHINE = {
   FLIP_BETA_THRESHOLD: 130,
   /** how long flip effect lasts (ms) */
   FLIP_DURATION: 800,
+
+  /** desktop keyboard tilt delta per frame */
+  KEYBOARD_TILT_STEP: 3.8,
+  /** desktop keyboard shake impulse */
+  KEYBOARD_SHAKE_POWER: 14,
+  /** wrong-direction tilt fraction that starts attack-window heat punishment */
+  WRONG_TILT_PUNISH_THRESHOLD: 0.35,
+  /** extra heat per second while leaning hard into the wrong tilt direction */
+  WRONG_TILT_HEAT_RATE: 20,
 };
 
 // ─── Machine personality types ────────────────────────────────────────────────
@@ -141,12 +138,120 @@ export const MACHINE_CONFIGS = {
 
 // ─── Chaos events ─────────────────────────────────────────────────────────────
 export const CHAOS = {
-  MIN_INTERVAL_MS: 1_400,
-  MAX_INTERVAL_MS: 4_000,
-  MIN_WINDOW_MS: 800,
-  MAX_WINDOW_MS: 3_000,
+  MIN_INTERVAL_MS: 1_800,
+  MAX_INTERVAL_MS: 4_600,
+  MIN_WINDOW_MS: 1_100,
+  MAX_WINDOW_MS: 3_400,
   WARNING_MS: 500,
+  PARTY_MODE_MIN_START_MS: 20_000,
+  PARTY_MODE_ROLL_MS: 12_000,
+  PARTY_MODE_MIN_CHANCE: 0.0,
+  PARTY_MODE_MAX_CHANCE: 0.1,
+  PARTY_MODE_HIGH_HEAT_THRESHOLD: 0.9,
+  PARTY_MODE_HIGH_HEAT_CHANCE: 0.2,
+  PARTY_MODE_DURATION_MS: 8_000,
+  PARTY_MODE_HEAT_COOLING: 9,
+  PARTY_MODE_PRESSURE_VENT: 12,
+  PARTY_MODE_SCORE_MULT: 1.35,
 };
+
+export type LevelObjective = {
+  surviveMs: number;
+  maxHeatPct?: number;
+  maxPressurePct?: number;
+};
+
+export type LevelConfig = {
+  level: number;
+  label: string;
+  briefing: string;
+  objective: LevelObjective | null;
+  heatGainMult: number;
+  pressureGainMult: number;
+  chaosIntervalMult: number;
+  chaosWindowMult: number;
+  endless?: boolean;
+};
+
+export const LEVELS = {
+  START: 1,
+  CAMPAIGN_LAST: 5,
+  ENDLESS: 6,
+  MAX: 6,
+};
+
+export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
+  1: {
+    level: 1,
+    label: "BOOT SEQUENCE",
+    briefing: "SURVIVE 18S // STABILIZE THE LINK",
+    objective: { surviveMs: 18_000 },
+    heatGainMult: 1,
+    pressureGainMult: 1,
+    chaosIntervalMult: 1.08,
+    chaosWindowMult: 1.08,
+  },
+  2: {
+    level: 2,
+    label: "COOLANT WATCH",
+    briefing: "HOLD HEAT <82% FOR 20S",
+    objective: { surviveMs: 20_000, maxHeatPct: 0.82 },
+    heatGainMult: 1.08,
+    pressureGainMult: 1.04,
+    chaosIntervalMult: 0.96,
+    chaosWindowMult: 0.95,
+  },
+  3: {
+    level: 3,
+    label: "PRESSURE LOCK",
+    briefing: "HOLD PRESSURE <72% FOR 22S",
+    objective: { surviveMs: 22_000, maxPressurePct: 0.72 },
+    heatGainMult: 1.12,
+    pressureGainMult: 1.14,
+    chaosIntervalMult: 0.92,
+    chaosWindowMult: 0.9,
+  },
+  4: {
+    level: 4,
+    label: "DUAL SYNC",
+    briefing: "HOLD HEAT <80% AND PRESSURE <78% FOR 26S",
+    objective: { surviveMs: 26_000, maxHeatPct: 0.8, maxPressurePct: 0.78 },
+    heatGainMult: 1.18,
+    pressureGainMult: 1.18,
+    chaosIntervalMult: 0.88,
+    chaosWindowMult: 0.86,
+  },
+  5: {
+    level: 5,
+    label: "CORE REDLINE",
+    briefing: "HOLD HEAT <76% AND PRESSURE <74% FOR 30S",
+    objective: { surviveMs: 30_000, maxHeatPct: 0.76, maxPressurePct: 0.74 },
+    heatGainMult: 1.26,
+    pressureGainMult: 1.24,
+    chaosIntervalMult: 0.82,
+    chaosWindowMult: 0.8,
+  },
+  6: {
+    level: 6,
+    label: "ENDLESS",
+    briefing: "ENDLESS // NO SAFE SHUTDOWN",
+    objective: null,
+    heatGainMult: 1.34,
+    pressureGainMult: 1.32,
+    chaosIntervalMult: 0.76,
+    chaosWindowMult: 0.74,
+    endless: true,
+  },
+};
+
+export function getLevelConfig(level: number): LevelConfig {
+  const resolved = Math.max(LEVELS.START, Math.min(level, LEVELS.ENDLESS));
+  return LEVEL_CONFIGS[resolved] ?? LEVEL_CONFIGS[LEVELS.ENDLESS];
+}
+
+export function getLevelLabel(level: number) {
+  return level >= LEVELS.ENDLESS ? "ENDLESS" : `LEVEL ${level}`;
+}
 
 export const CHAOS_EVENTS = [
   "heat_burst",
@@ -175,6 +280,13 @@ export type MachineMusicStep = MachineCommPulse & {
   chance?: number;
   detuneJitter?: number;
   rateJitter?: number;
+  harmony?: readonly MachineMusicHarmonyVoice[];
+};
+
+export type MachineMusicHarmonyVoice = {
+  detune: number;
+  volume: number;
+  rate?: number;
 };
 
 export type MachineMusicTrack = {
@@ -200,6 +312,16 @@ export const MACHINE_COMMS = {
     pulses: [
       { at: 0, rate: 1.12, detune: 220, volume: 0.18 },
       { at: 120, rate: 1.2, detune: 380, volume: 0.16 },
+    ],
+  },
+  CONGRATS: {
+    text: "STAGE CLEAR // LINK STABLE",
+    color: "#a5ffd2",
+    pulses: [
+      { at: 0, rate: 1.02, detune: 120, volume: 0.16 },
+      { at: 130, rate: 1.14, detune: 320, volume: 0.17 },
+      { at: 280, rate: 1.28, detune: 540, volume: 0.18 },
+      { at: 450, rate: 1.16, detune: 420, volume: 0.14 },
     ],
   },
   FAIL: {
@@ -291,6 +413,7 @@ export const MACHINE_COMMS = {
   IDLE_COLOR: string;
   STARTUP: MachineCommSignal;
   SUCCESS: MachineCommSignal;
+  CONGRATS: MachineCommSignal;
   FAIL: Record<"timeout" | "baited", MachineCommSignal>;
   GAME_OVER: Record<"meltdown" | "explosion", MachineCommSignal>;
   EVENTS: Record<ChaosEventName, MachineCommSignal>;
@@ -298,56 +421,256 @@ export const MACHINE_COMMS = {
 
 export const MACHINE_MUSIC = {
   landing: {
-    loopMs: 4_800,
+    loopMs: 5_200,
     steps: [
-      { at: 0, rate: 0.82, detune: -320, volume: 0.09 },
-      { at: 620, rate: 0.88, detune: -180, volume: 0.1 },
-      { at: 1_240, rate: 0.94, detune: -60, volume: 0.11 },
-      { at: 1_860, rate: 1.02, detune: 60, volume: 0.12 },
-      { at: 2_320, rate: 0.9, detune: -120, volume: 0.08, detuneJitter: 20 },
-      { at: 2_540, rate: 1.08, detune: 160, volume: 0.1 },
-      { at: 2_760, rate: 1.16, detune: 300, volume: 0.11 },
-      { at: 3_040, rate: 0.86, detune: -260, volume: 0.08, chance: 0.85 },
-      { at: 3_170, rate: 1.2, detune: 360, volume: 0.08, chance: 0.7 },
-      { at: 3_520, rate: 1.04, detune: 140, volume: 0.1, rateJitter: 0.02 },
-      { at: 3_820, rate: 0.96, detune: -40, volume: 0.09 },
-      { at: 4_160, rate: 0.9, detune: -140, volume: 0.09, detuneJitter: 30 },
-      { at: 4_440, rate: 1.08, detune: 90, volume: 0.08, chance: 0.8 },
+      {
+        at: 0,
+        rate: 0.94,
+        detune: -120,
+        volume: 0.095,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.02 },
+          { detune: 700, volume: 0.022, rate: 1.1 },
+        ],
+      },
+      {
+        at: 240,
+        rate: 1.08,
+        detune: 80,
+        volume: 0.105,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.16 }],
+      },
+      {
+        at: 480,
+        rate: 1.2,
+        detune: 260,
+        volume: 0.11,
+        harmony: [
+          { detune: 380, volume: 0.034, rate: 1.28 },
+          { detune: 700, volume: 0.022, rate: 1.34 },
+        ],
+      },
+      {
+        at: 760,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 320, volume: 0.03, rate: 1.08 }],
+      },
+      {
+        at: 1_040,
+        rate: 0.94,
+        detune: -120,
+        volume: 0.09,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.02 },
+          { detune: 700, volume: 0.022, rate: 1.1 },
+        ],
+      },
+      {
+        at: 1_280,
+        rate: 1.08,
+        detune: 80,
+        volume: 0.105,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.16 }],
+      },
+      {
+        at: 1_520,
+        rate: 1.2,
+        detune: 260,
+        volume: 0.11,
+        harmony: [
+          { detune: 380, volume: 0.034, rate: 1.28 },
+          { detune: 700, volume: 0.022, rate: 1.34 },
+        ],
+      },
+      {
+        at: 1_800,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.095,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.36 }],
+      },
+      {
+        at: 2_180,
+        rate: 0.9,
+        detune: -220,
+        volume: 0.08,
+        harmony: [{ detune: 500, volume: 0.024, rate: 0.98 }],
+      },
+      {
+        at: 2_480,
+        rate: 1.04,
+        detune: 40,
+        volume: 0.092,
+        harmony: [
+          { detune: 320, volume: 0.028, rate: 1.12 },
+          { detune: 700, volume: 0.018, rate: 1.2 },
+        ],
+      },
+      {
+        at: 2_760,
+        rate: 1.16,
+        detune: 220,
+        volume: 0.1,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.24 }],
+      },
+      {
+        at: 3_000,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.105,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.34 },
+          { detune: 700, volume: 0.02, rate: 1.42 },
+        ],
+      },
+      { at: 3_320, rate: 0.92, detune: -140, volume: 0.08, detuneJitter: 18 },
+      { at: 3_600, rate: 1.22, detune: 300, volume: 0.09, chance: 0.85 },
+      { at: 3_860, rate: 1.34, detune: 520, volume: 0.08, chance: 0.7 },
+      {
+        at: 4_180,
+        rate: 0.96,
+        detune: -40,
+        volume: 0.085,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.04 }],
+      },
+      {
+        at: 4_520,
+        rate: 1.12,
+        detune: 180,
+        volume: 0.095,
+        harmony: [{ detune: 320, volume: 0.026, rate: 1.2 }],
+      },
+      {
+        at: 4_760,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.1,
+        harmony: [{ detune: 700, volume: 0.022, rate: 1.36 }],
+      },
     ],
   },
   game: {
     loopMs: 3_200,
     steps: [
-      { at: 0, rate: 0.92, detune: -180, volume: 0.08 },
-      { at: 160, rate: 1.18, detune: 260, volume: 0.06 },
-      { at: 340, rate: 0.96, detune: -80, volume: 0.08, detuneJitter: 20 },
-      { at: 520, rate: 1.24, detune: 320, volume: 0.05 },
-      { at: 700, rate: 1.02, detune: 30, volume: 0.09 },
-      { at: 860, rate: 1.28, detune: 420, volume: 0.05, chance: 0.85 },
-      { at: 1_020, rate: 0.94, detune: -120, volume: 0.08 },
-      { at: 1_170, rate: 1.22, detune: 360, volume: 0.05 },
-      { at: 1_360, rate: 0.98, detune: 20, volume: 0.09 },
-      { at: 1_520, rate: 1.3, detune: 460, volume: 0.05, rateJitter: 0.03 },
-      { at: 1_700, rate: 0.9, detune: -220, volume: 0.1 },
-      { at: 1_860, rate: 1.18, detune: 260, volume: 0.06 },
-      { at: 2_020, rate: 0.96, detune: -60, volume: 0.09 },
-      { at: 2_180, rate: 1.32, detune: 540, volume: 0.05, chance: 0.75 },
-      { at: 2_360, rate: 0.88, detune: -260, volume: 0.1, detuneJitter: 35 },
-      { at: 2_500, rate: 1.24, detune: 300, volume: 0.06 },
-      { at: 2_660, rate: 0.94, detune: -100, volume: 0.09 },
-      { at: 2_800, rate: 1.36, detune: 620, volume: 0.05, chance: 0.65 },
-      { at: 2_940, rate: 0.86, detune: -320, volume: 0.1 },
-      { at: 3_060, rate: 1.26, detune: 380, volume: 0.05, chance: 0.8 },
+      {
+        at: 0,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 180,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.075,
+        harmony: [{ detune: 320, volume: 0.022, rate: 1.2 }],
+      },
+      {
+        at: 360,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.065,
+        harmony: [
+          { detune: 320, volume: 0.02, rate: 1.34 },
+          { detune: 700, volume: 0.014, rate: 1.42 },
+        ],
+      },
+      {
+        at: 560,
+        rate: 1.04,
+        detune: 80,
+        volume: 0.085,
+        harmony: [{ detune: 700, volume: 0.018, rate: 1.12 }],
+      },
+      {
+        at: 860,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 1_040,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.075,
+        harmony: [{ detune: 320, volume: 0.022, rate: 1.2 }],
+      },
+      {
+        at: 1_220,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.065,
+        harmony: [
+          { detune: 320, volume: 0.02, rate: 1.34 },
+          { detune: 700, volume: 0.014, rate: 1.42 },
+        ],
+      },
+      {
+        at: 1_420,
+        rate: 0.96,
+        detune: -100,
+        volume: 0.08,
+        harmony: [{ detune: 320, volume: 0.018, rate: 1.04 }],
+      },
+      {
+        at: 1_600,
+        rate: 0.88,
+        detune: -260,
+        volume: 0.09,
+        harmony: [{ detune: 500, volume: 0.016, rate: 0.96 }],
+      },
+      { at: 1_760, rate: 1.22, detune: 320, volume: 0.065, chance: 0.8 },
+      { at: 1_940, rate: 1.34, detune: 520, volume: 0.055, chance: 0.65 },
+      {
+        at: 2_120,
+        rate: 1,
+        detune: 20,
+        volume: 0.088,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 2_300,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.072,
+        harmony: [{ detune: 320, volume: 0.02, rate: 1.2 }],
+      },
+      {
+        at: 2_480,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.064,
+        harmony: [{ detune: 700, volume: 0.014, rate: 1.4 }],
+      },
+      { at: 2_700, rate: 0.92, detune: -140, volume: 0.078, detuneJitter: 22 },
+      { at: 2_880, rate: 1.2, detune: 300, volume: 0.062, chance: 0.85 },
+      { at: 3_040, rate: 1.32, detune: 500, volume: 0.052, chance: 0.7 },
     ],
   },
   game_over: {
     loopMs: 4_200,
     steps: [
-      { at: 0, rate: 0.78, detune: -420, volume: 0.11 },
+      {
+        at: 0,
+        rate: 0.78,
+        detune: -420,
+        volume: 0.11,
+        harmony: [{ detune: 620, volume: 0.018, rate: 0.84 }],
+      },
       { at: 420, rate: 0.82, detune: -320, volume: 0.1 },
       { at: 960, rate: 0.88, detune: -180, volume: 0.08 },
       { at: 1_280, rate: 1, detune: 20, volume: 0.05, chance: 0.7 },
-      { at: 1_620, rate: 0.74, detune: -520, volume: 0.12 },
+      {
+        at: 1_620,
+        rate: 0.74,
+        detune: -520,
+        volume: 0.12,
+        harmony: [{ detune: 700, volume: 0.016, rate: 0.8 }],
+      },
       { at: 2_040, rate: 0.84, detune: -300, volume: 0.09, detuneJitter: 18 },
       { at: 2_380, rate: 1.06, detune: 120, volume: 0.05, chance: 0.55 },
       { at: 2_760, rate: 0.8, detune: -360, volume: 0.1 },
@@ -359,48 +682,63 @@ export const MACHINE_MUSIC = {
 } satisfies Record<"landing" | "game" | "game_over", MachineMusicTrack>;
 
 // ─── UI layout ────────────────────────────────────────────────────────────────
-const _cx = _canvasW / 2;
-const _safeTop = Math.max(_canvasH * 0.08, _insets.top);
-const _usableH = _canvasH - _safeTop - _insets.bottom;
+const _cx = GAME.WIDTH / 2;
+const _safeTop = Math.max(GAME.HEIGHT * 0.08, _insets.top);
+const _usableH = GAME.HEIGHT - _safeTop - _insets.bottom;
+const _contentW = Math.min(GAME.WIDTH * 0.76, 640 * PX);
+const _touchBtnW = Math.min(GAME.WIDTH * 0.22, 170 * PX);
+const _flipBtnW = Math.min(GAME.WIDTH * 0.35, 250 * PX);
+const _isCompactH = GAME.HEIGHT <= 700;
+const _valueFont = Math.round((_isCompactH ? 12 : 13) * PX);
+const _chaosFont = Math.round((_isCompactH ? 14 : 16) * PX);
+const _warningFont = Math.round((_isCompactH ? 17 : 20) * PX);
 
 export const UI = {
+  IS_COMPACT_H: _isCompactH,
   CX: _cx,
   SAFE_TOP: _safeTop,
   USABLE_H: _usableH,
+  CONTENT_W: _contentW,
+  CONTENT_X: _cx - _contentW / 2,
 
-  BAR_W: _canvasW * 0.76,
+  BAR_W: _contentW,
   BAR_H: 22 * PX,
-  BAR_X: _canvasW * 0.12,
+  BAR_X: _cx - _contentW / 2,
   BAR_CORNER: 6 * PX,
 
   LABEL_FS: `${Math.round(16 * PX)}px`,
-  VALUE_FS: `${Math.round(13 * PX)}px`,
+  VALUE_FS: `${Math.max(11, _valueFont)}px`,
   SCORE_FS: `${Math.round(36 * PX)}px`,
   MACHINE_FS: `${Math.round(14 * PX)}px`,
-  WARNING_FS: `${Math.round(20 * PX)}px`,
-  CHAOS_FS: `${Math.round(16 * PX)}px`,
+  WARNING_FS: `${Math.max(14, _warningFont)}px`,
+  CHAOS_FS: `${Math.max(12, _chaosFont)}px`,
 
   PADDING: 16 * PX,
   SECTION_GAP: 14 * PX,
+  CHAOS_GAP: (_isCompactH ? 20 : 30) * PX,
 
   /** Y positions as factions of usable height, from safe top */
   SCORE_Y_FRAC: 0.05,
   MACHINE_Y_FRAC: 0.11,
-  HEAT_Y_FRAC: 0.22,
-  VOLTAGE_Y_FRAC: 0.36,
-  PRESSURE_Y_FRAC: 0.5,
+  COMMS_TITLE_Y_FRAC: _isCompactH ? 0.17 : 0.19,
+  COMMS_TEXT_Y_FRAC: _isCompactH ? 0.2 : 0.22,
+  HEAT_Y_FRAC: _isCompactH ? 0.24 : 0.255,
+  VOLTAGE_Y_FRAC: _isCompactH ? 0.355 : 0.375,
+  PRESSURE_Y_FRAC: _isCompactH ? 0.47 : 0.495,
   TILT_Y_FRAC: 0.64,
-  WARNING_Y_FRAC: 0.75,
-  TOUCH_Y_FRAC: 0.88,
+  WARNING_Y_FRAC: _isCompactH ? 0.71 : 0.75,
+  ATTACK_Y_FRAC: _isCompactH ? 0.765 : 0.81,
+  ATTACK_TIMER_Y_FRAC: _isCompactH ? 0.805 : 0.85,
+  TOUCH_Y_FRAC: _isCompactH ? 0.895 : 0.88,
 
-  TILT_W: _canvasW * 0.7,
+  TILT_W: Math.min(GAME.WIDTH * 0.7, _contentW * 0.92),
   TILT_H: 18 * PX,
 
-  TOUCH_BTN_W: _canvasW * 0.22,
-  TOUCH_BTN_H: 52 * PX,
-  TOUCH_ALPHA: 0.45,
-  TOUCH_ACTIVE_ALPHA: 0.85,
+  TOUCH_BTN_W: _touchBtnW,
+  TOUCH_BTN_H: Math.max(34, (_isCompactH ? 44 : 52) * PX),
+  TOUCH_ALPHA: 0.78,
+  TOUCH_ACTIVE_ALPHA: 0.96,
 
-  FLIP_BTN_W: _canvasW * 0.35,
-  FLIP_BTN_H: 48 * PX,
+  FLIP_BTN_W: _flipBtnW,
+  FLIP_BTN_H: Math.max(32, (_isCompactH ? 40 : 48) * PX),
 };

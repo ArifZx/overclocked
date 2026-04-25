@@ -99,6 +99,10 @@ Core emotional cycle:
 5. SPEED INCREASE
    - next event becomes faster
 
+6. LEVEL UP
+   - each stage has a clear survival objective
+   - clearing stage 5 unlocks endless stage 6
+
 LOOP REPEATS UNTIL DEATH
 ```
 ````
@@ -165,6 +169,19 @@ LOOP REPEATS UNTIL DEATH
 - Random pressure buildup
 - Triggers attack events
 - Safe tilt should slowly vent pressure; risky tilt should build it faster
+- Higher levels should reduce calm time and shorten response windows
+
+---
+
+## 🧱 LEVEL PROGRESSION
+
+- The run is structured into 5 configured stages and 1 endless stage
+- Each stage should declare:
+  - a survival timer target
+  - optional heat and/or pressure limits that must be respected while filling that timer
+  - its own difficulty tuning for heat gain, pressure gain, event frequency, and reaction windows
+- Stage 6 is endless and acts as the post-campaign survival mode
+- UI should clearly show the current stage during play and the best stage reached on game over
 
 ---
 

@@ -1,5 +1,5 @@
 import { Scene } from "phaser";
-import { GAME, PALETTE, UI, DPR } from "../core/Constants";
+import { GAME, getLevelLabel, LEVELS, PALETTE, UI, DPR, PX } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
 import { MachineMusicSystem } from "../systems/MachineMusicSystem";
@@ -16,6 +16,21 @@ export class GameOver extends Scene {
     const cx = GAME.WIDTH / 2;
     const st = UI.SAFE_TOP;
     const uh = UI.USABLE_H;
+    const isCompact = UI.IS_COMPACT_H;
+    const headerFontSize = Math.max(22, Math.round((isCompact ? 26 : 32) * PX));
+    const offlineFontSize = Math.max(12, Math.round((isCompact ? 14 : 16) * PX));
+    const scoreFontSize = Math.max(30, Math.round((isCompact ? 36 : 44) * PX));
+    const buttonFontSize = Math.max(14, Math.round((isCompact ? 16 : 18) * PX));
+    const taglineFontSize = Math.max(10, Math.round((isCompact ? 10 : 11) * PX));
+    const scorePanelY = st + uh * (isCompact ? 0.3 : 0.32);
+    const scorePanelH = uh * (isCompact ? 0.22 : 0.26);
+    const bestY = st + uh * (isCompact ? 0.51 : 0.56);
+    const machineY = st + uh * (isCompact ? 0.59 : 0.65);
+    const levelY = st + uh * (isCompact ? 0.64 : 0.7);
+    const bestLevelY = st + uh * (isCompact ? 0.68 : 0.74);
+    const primaryButtonY = st + uh * (isCompact ? 0.74 : 0.78);
+    const secondaryButtonY = st + uh * (isCompact ? 0.83 : 0.86);
+    const taglineY = st + uh * (isCompact ? 0.89 : 0.91);
 
     this._createBackground();
 
@@ -26,7 +41,7 @@ export class GameOver extends Scene {
 
     this.add
       .text(cx, st + uh * 0.12, headerText, {
-        fontSize: `${Math.round(32 * DPR)}px`,
+        fontSize: `${headerFontSize}px`,
         fontFamily: "monospace",
         color: headerColor,
         align: "center",
@@ -37,16 +52,16 @@ export class GameOver extends Scene {
 
     this.add
       .text(cx, st + uh * 0.21, "SYSTEM OFFLINE", {
-        fontSize: `${Math.round(16 * DPR)}px`,
+        fontSize: `${offlineFontSize}px`,
         fontFamily: "monospace",
         color: PALETTE.TEXT_DIM,
         align: "center",
-        letterSpacing: 4 * DPR,
+        letterSpacing: Math.max(2, Math.round(4 * PX)),
       })
       .setOrigin(0.5, 0.5);
 
     // Score panel
-    this._createPanel(cx - GAME.WIDTH * 0.38, st + uh * 0.32, GAME.WIDTH * 0.76, uh * 0.26);
+    this._createPanel(cx - UI.CONTENT_W / 2, scorePanelY, UI.CONTENT_W, scorePanelH);
 
     this.add
       .text(cx, st + uh * 0.38, "SCORE", {
@@ -58,7 +73,7 @@ export class GameOver extends Scene {
 
     this.add
       .text(cx, st + uh * 0.47, Math.floor(gameState.score).toString().padStart(6, "0"), {
-        fontSize: `${Math.round(44 * DPR)}px`,
+        fontSize: `${scoreFontSize}px`,
         fontFamily: "monospace",
         color: PALETTE.TEXT,
       })
@@ -68,7 +83,7 @@ export class GameOver extends Scene {
     const isBest = Math.floor(gameState.score) >= gameState.bestScore;
     if (isBest) {
       this.add
-        .text(cx, st + uh * 0.56, "✦ NEW BEST ✦", {
+        .text(cx, bestY, "✦ NEW BEST ✦", {
           fontSize: UI.MACHINE_FS,
           fontFamily: "monospace",
           color: "#ffcc00",
@@ -76,7 +91,7 @@ export class GameOver extends Scene {
         .setOrigin(0.5, 0.5);
     } else {
       this.add
-        .text(cx, st + uh * 0.56, `BEST: ${gameState.bestScore.toString().padStart(6, "0")}`, {
+        .text(cx, bestY, `BEST: ${gameState.bestScore.toString().padStart(6, "0")}`, {
           fontSize: UI.MACHINE_FS,
           fontFamily: "monospace",
           color: PALETTE.TEXT_DIM,
@@ -87,63 +102,73 @@ export class GameOver extends Scene {
     // Machine type that was running
     const machineLabel = gameState.machineConfig.label;
     this.add
-      .text(cx, st + uh * 0.65, machineLabel, {
+      .text(cx, machineY, machineLabel, {
         fontSize: UI.MACHINE_FS,
         fontFamily: "monospace",
         color: PALETTE.TEXT_DIM,
       })
       .setOrigin(0.5, 0.5);
 
+    const runLabel =
+      gameState.level >= LEVELS.ENDLESS
+        ? "ENDLESS // BEST COMBO"
+        : `${getLevelLabel(gameState.level)} // BEST COMBO`;
+
     this.add
-      .text(cx, st + uh * 0.7, `BEST COMBO: x${gameState.bestCombo}`, {
+      .text(cx, levelY, `${runLabel} x${gameState.bestCombo}`, {
         fontSize: UI.MACHINE_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
       })
       .setOrigin(0.5, 0.5);
 
-    // Restart button
-    const bw = GAME.WIDTH * 0.55;
-    const bh = 52 * DPR;
-    const bx = cx - bw / 2;
-    const by = st + uh * 0.79;
-
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(PALETTE.VOLTAGE, 0.9);
-    btnBg.fillRoundedRect(bx, by, bw, bh, 8 * DPR);
-
     this.add
-      .text(cx, by + bh / 2, "⚡  PLAY AGAIN", {
-        fontSize: `${Math.round(18 * DPR)}px`,
+      .text(cx, bestLevelY, `BEST STAGE: ${getLevelLabel(gameState.bestLevel)}`, {
+        fontSize: UI.MACHINE_FS,
         fontFamily: "monospace",
-        color: "#0a0a14",
+        color: PALETTE.TEXT_DIM,
       })
       .setOrigin(0.5, 0.5);
+
+    // Action buttons
+    const bw = Math.min(GAME.WIDTH * 0.55, UI.CONTENT_W * 0.72);
+    const bh = Math.max(40, Math.round((isCompact ? 44 : 52) * PX));
+    this._createButton(
+      cx,
+      primaryButtonY,
+      bw,
+      bh,
+      "PLAY AGAIN",
+      PALETTE.VOLTAGE,
+      () => {
+        this._restart();
+      },
+      buttonFontSize,
+    );
+    this._createButton(
+      cx,
+      secondaryButtonY,
+      bw,
+      bh,
+      "EXIT TO LANDING",
+      PALETTE.PANEL_BORDER,
+      () => {
+        this._goToLanding();
+      },
+      buttonFontSize,
+      PALETTE.TEXT,
+    );
 
     // Bottom tagline
     this.add
-      .text(cx, st + uh * 0.91, '"You don\'t control the machine. You survive it."', {
-        fontSize: `${Math.round(11 * DPR)}px`,
+      .text(cx, taglineY, '"You don\'t control the machine. You survive it."', {
+        fontSize: `${taglineFontSize}px`,
         fontFamily: "monospace",
         color: PALETTE.TEXT_DIM,
         align: "center",
-        wordWrap: { width: GAME.WIDTH * 0.85 },
+        wordWrap: { width: Math.min(GAME.WIDTH * 0.8, UI.CONTENT_W * 0.92) },
       })
       .setOrigin(0.5, 0.5);
-
-    // Interactive zone over the restart button
-    const btnZone = this.add.zone(cx, by + bh / 2, bw, bh).setInteractive();
-    btnZone.on("pointerover", () => {
-      btnBg.clear();
-      btnBg.fillStyle(PALETTE.TEXT_HEX, 0.95);
-      btnBg.fillRoundedRect(bx, by, bw, bh, 8 * DPR);
-    });
-    btnZone.on("pointerout", () => {
-      btnBg.clear();
-      btnBg.fillStyle(PALETTE.VOLTAGE, 0.9);
-      btnBg.fillRoundedRect(bx, by, bw, bh, 8 * DPR);
-    });
-    btnZone.on("pointerdown", () => this._restart());
 
     this._music.start("game_over");
     this.events.on("shutdown", this._cleanup, this);
@@ -171,6 +196,41 @@ export class GameOver extends Scene {
     panel.strokeRoundedRect(x, y, w, h, 12 * DPR);
   }
 
+  private _createButton(
+    cx: number,
+    y: number,
+    width: number,
+    height: number,
+    label: string,
+    fillColor: number,
+    onClick: () => void,
+    fontSize: number,
+    textColor = "#0a0a14",
+  ) {
+    const x = cx - width / 2;
+    const bg = this.add.graphics();
+    const draw = (hovered: boolean) => {
+      bg.clear();
+      bg.fillStyle(hovered ? PALETTE.TEXT_HEX : fillColor, hovered ? 0.95 : 0.9);
+      bg.fillRoundedRect(x, y, width, height, 8 * DPR);
+    };
+
+    draw(false);
+
+    this.add
+      .text(cx, y + height / 2, label, {
+        fontSize: `${fontSize}px`,
+        fontFamily: "monospace",
+        color: hoveredTextColor(fillColor, textColor),
+      })
+      .setOrigin(0.5, 0.5);
+
+    const zone = this.add.zone(cx, y + height / 2, width, height).setInteractive();
+    zone.on("pointerover", () => draw(true));
+    zone.on("pointerout", () => draw(false));
+    zone.on("pointerdown", onClick);
+  }
+
   private _restart() {
     this._music.stop();
     gameState.reset();
@@ -181,7 +241,19 @@ export class GameOver extends Scene {
     });
   }
 
+  private _goToLanding() {
+    this._music.stop();
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.start("Preloader");
+    });
+  }
+
   private _cleanup = () => {
     this._music.stop();
   };
+}
+
+function hoveredTextColor(fillColor: number, fallback: string) {
+  return fillColor === PALETTE.PANEL_BORDER ? PALETTE.TEXT : fallback;
 }

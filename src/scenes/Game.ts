@@ -1,6 +1,18 @@
 import { Scene, type GameObjects, type Time } from "phaser";
-import { GAME, PALETTE, UI, MACHINE, DPR, MACHINE_CONFIGS, MACHINE_COMMS } from "../core/Constants";
-import type { ChaosEventName, MachineCommSignal } from "../core/Constants";
+import {
+  GAME,
+  PALETTE,
+  UI,
+  MACHINE,
+  CHAOS,
+  getLevelConfig,
+  LEVELS,
+  DPR,
+  PX,
+  MACHINE_CONFIGS,
+  MACHINE_COMMS,
+} from "../core/Constants";
+import type { ChaosEventName, LevelConfig, MachineCommSignal } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
 import { MotionSystem } from "../systems/MotionSystem";
@@ -77,11 +89,14 @@ export class Game extends Scene {
   private _screenShakeMag = 0;
   private _warningFlicker = 0;
   private _lastShakePower = 0;
+  private _wrongTiltPunishActive = false;
 
   // ── Attack state ───────────────────────────────────────────────────────────
   private _attackResolved = false;
   private _attackRequirement: AttackRequirement | null = null;
   private _tiltTargetDir: -1 | 1 = 1;
+  private _holdTiltBaseline = 0;
+  private _isTransitioning = false;
   private readonly _commPulseEvents = new Set<Time.TimerEvent>();
 
   constructor() {
@@ -89,8 +104,9 @@ export class Game extends Scene {
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
-  create() {
-    gameState.reset();
+  create(data?: { startLevel?: number }) {
+    this._isTransitioning = false;
+    gameState.reset(data?.startLevel ?? gameState.selectedLevel);
 
     this._createBackground();
     this._createUI();
@@ -118,9 +134,12 @@ export class Game extends Scene {
   }
 
   update(time: number, delta: number) {
-    if (gameState.gameOver) return;
+    if (gameState.gameOver || this._isTransitioning) return;
 
     const dt = delta / 1000;
+    const levelConfig = getLevelConfig(gameState.level);
+
+    this._updatePartyMode(time);
 
     // ── Input ──────────────────────────────────────────────────────────────
     this._motion.update(delta);
@@ -153,8 +172,9 @@ export class Game extends Scene {
     // ── Heat ───────────────────────────────────────────────────────────────
     const vol = gameState.voltage / 100;
     const heatMult = gameState.machineConfig.heatMult;
+    const levelIntensity = levelConfig.heatGainMult;
 
-    let dHeat = vol * MACHINE.HEAT_RATE * heatMult * dt * 100;
+    let dHeat = vol * MACHINE.HEAT_RATE * heatMult * levelIntensity * dt * 100;
     dHeat -= MACHINE.PASSIVE_COOLING * dt;
 
     const effectiveShake = gameState.shakePower;
@@ -171,7 +191,8 @@ export class Game extends Scene {
     const safeTilt = Math.max(0, -tiltFraction);
     const riskyTilt = Math.max(0, tiltFraction);
     const pressureGain =
-      pressureBaseGain + (vol * 0.65 + riskyTilt * 0.35) * MACHINE.PRESSURE_RISK_GAIN;
+      pressureBaseGain +
+      (vol * 0.65 + riskyTilt * 0.35) * MACHINE.PRESSURE_RISK_GAIN * levelConfig.pressureGainMult;
     const pressureVent =
       MACHINE.PRESSURE_PASSIVE_VENT + safeTilt * MACHINE.PRESSURE_SAFE_VENT_BONUS;
 
@@ -179,8 +200,14 @@ export class Game extends Scene {
 
     gameState.pressure = Math.max(0, Math.min(MACHINE.MAX_PRESSURE, gameState.pressure));
 
+    if (gameState.partyModeActive) {
+      gameState.heat = Math.max(0, gameState.heat - CHAOS.PARTY_MODE_HEAT_COOLING * dt);
+      gameState.pressure = Math.max(0, gameState.pressure - CHAOS.PARTY_MODE_PRESSURE_VENT * dt);
+    }
+
     // ── Score ──────────────────────────────────────────────────────────────
-    gameState.score += vol * gameState.machineConfig.scoreMult * dt * 10;
+    const partyScoreMult = gameState.partyModeActive ? CHAOS.PARTY_MODE_SCORE_MULT : 1;
+    gameState.score += vol * gameState.machineConfig.scoreMult * partyScoreMult * dt * 10;
 
     // ── Chaos tick ─────────────────────────────────────────────────────────
     this._chaos.update(time);
@@ -188,8 +215,16 @@ export class Game extends Scene {
     // ── Attack resolution loop ─────────────────────────────────────────────
     const shakeBurst = gameState.shakePower - this._lastShakePower > 7;
     const flipTriggered = gameState.flipTriggered;
-    const panicInput = shakeBurst || flipTriggered || Math.abs(tiltFraction) > 0.78;
-    this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, panicInput);
+    const holdAction =
+      shakeBurst ||
+      flipTriggered ||
+      this._touchLeft ||
+      this._touchRight ||
+      this._touchShake ||
+      Math.abs(tiltFraction - this._holdTiltBaseline) > 0.35;
+    this._wrongTiltPunishActive = this._applyWrongTiltPunishment(tiltFraction, dt);
+    this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, holdAction);
+    this._updateLevelProgression(delta);
 
     this._lastShakePower = gameState.shakePower;
     gameState.flipTriggered = false;
@@ -230,6 +265,10 @@ export class Game extends Scene {
     this._chaosText.setText(`⚠ ${CHAOS_LABELS[data.event]}`);
     this._chaosText.setAlpha(1);
     this._attackRequirement = this._pickRequirement(data.event);
+    this._holdTiltBaseline = Math.max(
+      -1,
+      Math.min(1, gameState.tiltAngle / MACHINE.TILT_SENSITIVITY),
+    );
     this._attackText.setText(this._promptForRequirement(this._attackRequirement));
     this._attackText.setAlpha(1);
     this._attackTimerText.setAlpha(1);
@@ -241,7 +280,11 @@ export class Game extends Scene {
 
   private _onChaosEnd = (data: { event: ChaosEventName }) => {
     if (!this._attackResolved) {
-      this._handleAttackFail(data.event, "timeout");
+      if (this._attackRequirement === "hold") {
+        this._handleAttackSuccess(data.event, this.time.now);
+      } else {
+        this._handleAttackFail(data.event, "timeout");
+      }
     }
     this._attackRequirement = null;
     this.tweens.add({ targets: this._chaosText, alpha: 0, duration: 500 });
@@ -255,6 +298,8 @@ export class Game extends Scene {
   };
 
   private _onGameOver = () => {
+    if (this._isTransitioning) return;
+    this._isTransitioning = true;
     if (gameState.score > gameState.bestScore) {
       gameState.bestScore = Math.floor(gameState.score);
     }
@@ -324,7 +369,7 @@ export class Game extends Scene {
       .setAlpha(0.8);
 
     this.add
-      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.095), "SYS:// AUDIO ENCODER", {
+      .text(cx, st + uh * UI.COMMS_TITLE_Y_FRAC, "SYS:// AUDIO ENCODER", {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: PALETTE.TEXT_DIM,
@@ -334,7 +379,7 @@ export class Game extends Scene {
       .setAlpha(0.75);
 
     this._commsText = this.add
-      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.13), MACHINE_COMMS.IDLE_TEXT, {
+      .text(cx, st + uh * UI.COMMS_TEXT_Y_FRAC, MACHINE_COMMS.IDLE_TEXT, {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: MACHINE_COMMS.IDLE_COLOR,
@@ -377,7 +422,7 @@ export class Game extends Scene {
       .setAlpha(0);
 
     this._chaosText = this.add
-      .text(cx, st + uh * UI.WARNING_Y_FRAC + 30 * DPR, "", {
+      .text(cx, st + uh * UI.WARNING_Y_FRAC + UI.CHAOS_GAP, "", {
         fontSize: UI.CHAOS_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
@@ -387,17 +432,18 @@ export class Game extends Scene {
       .setAlpha(0);
 
     this._attackText = this.add
-      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.06), "", {
+      .text(cx, st + uh * UI.ATTACK_Y_FRAC, "", {
         fontSize: UI.CHAOS_FS,
         fontFamily: "monospace",
         color: PALETTE.TEXT,
         align: "center",
+        wordWrap: { width: UI.CONTENT_W },
       })
       .setOrigin(0.5, 0.5)
       .setAlpha(0);
 
     this._attackTimerText = this.add
-      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.1), "", {
+      .text(cx, st + uh * UI.ATTACK_TIMER_Y_FRAC, "", {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
@@ -490,6 +536,8 @@ export class Game extends Scene {
       g.clear();
       g.fillStyle(color, alpha);
       g.fillRoundedRect(x - w / 2, y - h / 2, w, h, 8 * DPR);
+      g.lineStyle(1.5 * PX, PALETTE.WHITE, alpha > 0.9 ? 0.6 : 0.28);
+      g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 8 * DPR);
     };
 
     this._tcLeftBg = this.add.graphics();
@@ -502,21 +550,21 @@ export class Game extends Scene {
 
     this.add
       .text(cx - bw * 1.2, ty, "◄ TILT", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
       .setOrigin(0.5, 0.5);
     this.add
       .text(cx + bw * 1.2, ty, "TILT ►", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
       .setOrigin(0.5, 0.5);
     this.add
       .text(cx, ty + bh, "📳 SHAKE", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
@@ -612,8 +660,133 @@ export class Game extends Scene {
 
   private _updateScoreText() {
     this._scoreText.setText(Math.floor(gameState.score).toString().padStart(6, "0"));
-    this._comboText.setText(`COMBO x${gameState.combo}`);
+    const levelLabel = gameState.level >= LEVELS.ENDLESS ? "ENDLESS" : `LVL ${gameState.level}`;
+    this._comboText.setText(`${levelLabel} // COMBO x${gameState.combo}`);
     this._comboText.setAlpha(gameState.combo > 1 ? 1 : 0.75);
+
+    if (gameState.activeChaosEvent === null && !gameState.gameOver) {
+      const idleState = this._buildObjectiveCommState();
+      this._setMachineComm(idleState.text, idleState.color);
+    }
+  }
+
+  private _updatePartyMode(nowMs: number) {
+    if (gameState.level < LEVELS.ENDLESS) return;
+
+    if (gameState.partyModeActive) {
+      if (nowMs >= gameState.partyModeEndTime) {
+        gameState.partyModeActive = false;
+        gameState.partyModeEndTime = 0;
+        this._showWarning("PARTY OVER // CHAOS BACK ONLINE", PALETTE.WARNING);
+      }
+      return;
+    }
+
+    if (gameState.activeChaosEvent !== null) return;
+
+    if (gameState.partyModeNextRollTime === 0) {
+      gameState.partyModeNextRollTime = nowMs + CHAOS.PARTY_MODE_MIN_START_MS;
+      return;
+    }
+
+    if (nowMs < gameState.partyModeNextRollTime) return;
+
+    gameState.partyModeNextRollTime = nowMs + CHAOS.PARTY_MODE_ROLL_MS;
+    const partyModeChance =
+      gameState.heatPct() >= CHAOS.PARTY_MODE_HIGH_HEAT_THRESHOLD
+        ? CHAOS.PARTY_MODE_HIGH_HEAT_CHANCE
+        : CHAOS.PARTY_MODE_MIN_CHANCE +
+          Math.random() * (CHAOS.PARTY_MODE_MAX_CHANCE - CHAOS.PARTY_MODE_MIN_CHANCE);
+    if (Math.random() > partyModeChance) return;
+
+    gameState.partyModeActive = true;
+    gameState.partyModeEndTime = nowMs + CHAOS.PARTY_MODE_DURATION_MS;
+    gameState.heat = Math.max(0, gameState.heat - 10);
+    gameState.pressure = Math.max(0, gameState.pressure - 12);
+    gameState.score += 40;
+    this._triggerFlash(0.28, PALETTE.PRESSURE);
+    this._showWarning("PARTY TIME // COOLANT FREEFLOW", PALETTE.PRESSURE);
+    this._playCommSignal(MACHINE_COMMS.CONGRATS);
+    EventBus.emit(Events.SPECTACLE_STREAK, { streak: gameState.bestCombo + 1 });
+  }
+
+  private _updateLevelProgression(deltaMs: number) {
+    const levelConfig = getLevelConfig(gameState.level);
+    gameState.levelElapsedMs += deltaMs;
+
+    if (levelConfig.endless || levelConfig.objective === null) return;
+    if (this._levelObjectiveSatisfied(levelConfig)) {
+      gameState.levelProgressMs = Math.min(
+        levelConfig.objective.surviveMs,
+        gameState.levelProgressMs + deltaMs,
+      );
+    }
+
+    if (gameState.levelProgressMs < levelConfig.objective.surviveMs) return;
+
+    if (this._isTransitioning) return;
+
+    const completedLevel = gameState.level;
+    const nextLevel = Math.min(LEVELS.ENDLESS, gameState.level + 1);
+    gameState.bestLevel = Math.max(gameState.bestLevel, nextLevel);
+    gameState.selectedLevel = nextLevel;
+    this._isTransitioning = true;
+    this._triggerFlash(0.35, PALETTE.WARNING);
+    this.cameras.main.fadeOut(320, 0, 0, 0);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.start("LevelClear", {
+        completedLevel,
+        nextLevel,
+      });
+    });
+  }
+
+  private _levelObjectiveSatisfied(levelConfig: LevelConfig) {
+    const objective = levelConfig.objective;
+    if (objective === null) return true;
+    if (objective.maxHeatPct !== undefined && gameState.heatPct() > objective.maxHeatPct) {
+      return false;
+    }
+    if (
+      objective.maxPressurePct !== undefined &&
+      gameState.pressurePct() > objective.maxPressurePct
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  private _buildObjectiveCommState() {
+    const levelConfig = getLevelConfig(gameState.level);
+    if (levelConfig.endless || levelConfig.objective === null) {
+      return {
+        text: gameState.partyModeActive
+          ? "L6 PARTY TIME // COOL SYSTEMS HOLD"
+          : "L6 ENDLESS // SURVIVE AS LONG AS POSSIBLE",
+        color: gameState.partyModeActive ? "#7dffd0" : "#ffcc00",
+      };
+    }
+
+    const objective = levelConfig.objective;
+    const ruleParts: string[] = [];
+    if (objective.maxHeatPct !== undefined) {
+      ruleParts.push(`H<${Math.round(objective.maxHeatPct * 100)}`);
+    }
+    if (objective.maxPressurePct !== undefined) {
+      ruleParts.push(`P<${Math.round(objective.maxPressurePct * 100)}`);
+    }
+
+    const targetSec = (objective.surviveMs / 1000).toFixed(0);
+    const currentSec = (gameState.levelProgressMs / 1000).toFixed(1);
+    const text =
+      ruleParts.length > 0
+        ? `L${gameState.level} ${ruleParts.join(" ")} ${currentSec}/${targetSec}S`
+        : `L${gameState.level} SURVIVE ${currentSec}/${targetSec}S`;
+
+    return {
+      text,
+      color: this._levelObjectiveSatisfied(levelConfig) ? MACHINE_COMMS.IDLE_COLOR : "#ff9f73",
+    };
   }
 
   private _updateWarning() {
@@ -624,6 +797,14 @@ export class Game extends Scene {
     if (heatCrit || presCrit) {
       this._warningText.setText(heatCrit ? "⚠ MELTDOWN IMMINENT ⚠" : "⚠ PRESSURE CRITICAL ⚠");
       this._warningText.setAlpha(this._warningFlicker % 30 < 15 ? 1 : 0);
+    } else if (gameState.partyModeActive) {
+      this._warningText.setText("PARTY TIME // CHAOS SUSPENDED");
+      this._warningText.setColor("#7dffd0");
+      this._warningText.setAlpha(this._warningFlicker % 24 < 12 ? 0.95 : 0.5);
+    } else if (this._wrongTiltPunishActive) {
+      this._warningText.setText("WRONG TILT // CORE HEATING");
+      this._warningText.setColor("#ff8844");
+      this._warningText.setAlpha(this._warningFlicker % 20 < 10 ? 0.92 : 0.45);
     } else if (gameState.activeChaosEvent === null && this._warningText.alpha > 0) {
       this._warningText.setAlpha(Math.max(0, this._warningText.alpha - 0.05));
     }
@@ -660,7 +841,7 @@ export class Game extends Scene {
     tiltFraction: number,
     shakeBurst: boolean,
     flipTriggered: boolean,
-    panicInput: boolean,
+    holdAction: boolean,
   ) {
     const event = gameState.activeChaosEvent;
     if (event === null || this._attackResolved || this._attackRequirement === null) return;
@@ -668,7 +849,7 @@ export class Game extends Scene {
     const req = this._attackRequirement;
 
     if (req === "hold") {
-      if (panicInput) {
+      if (holdAction) {
         this._handleAttackFail(event, "baited");
       }
       return;
@@ -682,6 +863,35 @@ export class Game extends Scene {
 
     if (!success) return;
 
+    this._handleAttackSuccess(event, nowMs);
+  }
+
+  private _applyWrongTiltPunishment(tiltFraction: number, dt: number) {
+    if (this._attackResolved || this._attackRequirement === null) return false;
+
+    let wrongTiltMagnitude = 0;
+    if (this._attackRequirement === "tilt_left") {
+      wrongTiltMagnitude = Math.max(0, tiltFraction);
+    } else if (this._attackRequirement === "tilt_right") {
+      wrongTiltMagnitude = Math.max(0, -tiltFraction);
+    } else {
+      return false;
+    }
+
+    if (wrongTiltMagnitude < MACHINE.WRONG_TILT_PUNISH_THRESHOLD) return false;
+
+    const punishmentStrength =
+      (wrongTiltMagnitude - MACHINE.WRONG_TILT_PUNISH_THRESHOLD) /
+      (1 - MACHINE.WRONG_TILT_PUNISH_THRESHOLD);
+    gameState.heat = Math.min(
+      MACHINE.MAX_HEAT,
+      gameState.heat + MACHINE.WRONG_TILT_HEAT_RATE * punishmentStrength * dt,
+    );
+
+    return true;
+  }
+
+  private _handleAttackSuccess(event: ChaosEventName, nowMs: number) {
     this._attackResolved = true;
     gameState.combo += 1;
     gameState.bestCombo = Math.max(gameState.bestCombo, gameState.combo);
@@ -866,6 +1076,7 @@ export class Game extends Scene {
   }
 
   private _cleanup = () => {
+    this._isTransitioning = false;
     this._clearCommPulseEvents();
     this._music.stop();
     this._motion.stop();

@@ -1,6 +1,10 @@
 import type { Scene, Time } from "phaser";
 import { MACHINE_MUSIC } from "../core/Constants";
-import type { MachineMusicTrack } from "../core/Constants";
+import type {
+  MachineMusicHarmonyVoice,
+  MachineMusicTrack,
+  MachineMusicStep,
+} from "../core/Constants";
 
 type MachineMusicTrackName = keyof typeof MACHINE_MUSIC;
 
@@ -57,18 +61,38 @@ export class MachineMusicSystem {
 
         if (this._activeTrack === null) return;
 
-        const detune = step.detune + this._randomCentered(step.detuneJitter ?? 0);
-        const rate = step.rate + this._randomCentered(step.rateJitter ?? 0);
-
-        this._scene.sound.play("beep", {
-          rate: Math.max(0.5, rate),
-          detune,
-          volume: step.volume,
-        });
+        this._playStep(step);
       });
 
       this._scheduledEvents.add(timerEvent);
     }
+  }
+
+  private _playStep(step: MachineMusicStep) {
+    const detune = step.detune + this._randomCentered(step.detuneJitter ?? 0);
+    const rate = step.rate + this._randomCentered(step.rateJitter ?? 0);
+
+    this._playVoice({ detune, rate, volume: step.volume });
+
+    for (const voice of step.harmony ?? []) {
+      this._playVoice({
+        detune: detune + voice.detune,
+        rate: voice.rate ?? rate,
+        volume: voice.volume,
+      });
+    }
+  }
+
+  private _playVoice(
+    voice: Pick<MachineMusicHarmonyVoice, "detune" | "volume"> & {
+      rate: number;
+    },
+  ) {
+    this._scene.sound.play("beep", {
+      rate: Math.max(0.5, voice.rate),
+      detune: voice.detune,
+      volume: voice.volume,
+    });
   }
 
   private _randomCentered(amount: number) {
