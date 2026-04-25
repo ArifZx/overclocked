@@ -1,11 +1,13 @@
-import { Scene } from "phaser";
+import { Scene, type GameObjects } from "phaser";
 import { GAME, getLevelLabel, LEVELS, PALETTE, UI, DPR, PX } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
+import { leaderboardService } from "../services/LeaderboardServce";
 import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 
 export class GameOver extends Scene {
   private _music!: MachineMusicSystem;
+  private _submitStatusText!: GameObjects.Text;
 
   constructor() {
     super("GameOver");
@@ -28,8 +30,9 @@ export class GameOver extends Scene {
     const machineY = st + uh * (isCompact ? 0.59 : 0.65);
     const levelY = st + uh * (isCompact ? 0.64 : 0.7);
     const bestLevelY = st + uh * (isCompact ? 0.68 : 0.74);
-    const primaryButtonY = st + uh * (isCompact ? 0.74 : 0.78);
-    const secondaryButtonY = st + uh * (isCompact ? 0.83 : 0.86);
+    const submitStatusY = st + uh * (isCompact ? 0.72 : 0.76);
+    const primaryButtonY = st + uh * (isCompact ? 0.78 : 0.8);
+    const secondaryButtonY = st + uh * (isCompact ? 0.87 : 0.89);
     const taglineY = st + uh * (isCompact ? 0.89 : 0.91);
 
     this._createBackground();
@@ -130,6 +133,16 @@ export class GameOver extends Scene {
       })
       .setOrigin(0.5, 0.5);
 
+    this._submitStatusText = this.add
+      .text(cx, submitStatusY, "SYNCING SCORE...", {
+        fontSize: UI.VALUE_FS,
+        fontFamily: "monospace",
+        color: "#92ffd0",
+        align: "center",
+      })
+      .setOrigin(0.5, 0.5)
+      .setAlpha(0);
+
     // Action buttons
     const bw = Math.min(GAME.WIDTH * 0.55, UI.CONTENT_W * 0.72);
     const bh = Math.max(40, Math.round((isCompact ? 44 : 52) * PX));
@@ -171,8 +184,41 @@ export class GameOver extends Scene {
       .setOrigin(0.5, 0.5);
 
     this._music.start("game_over");
+    void this._submitScore();
     this.events.on("shutdown", this._cleanup, this);
     this.cameras.main.fadeIn(400, 0, 0, 0);
+  }
+
+  private async _submitScore() {
+    const score = Math.floor(gameState.score);
+    if (score <= 0) {
+      return;
+    }
+
+    this._submitStatusText.setAlpha(1);
+    this._submitStatusText.setText("SYNCING SCORE...");
+    this._submitStatusText.setColor("#92ffd0");
+
+    try {
+      const response = await leaderboardService.submitScore(score);
+      if (response instanceof Response && !response.ok) {
+        throw new Error(`Submit failed with status ${response.status}`);
+      }
+
+      if (!this.scene.isActive()) {
+        return;
+      }
+
+      this._submitStatusText.setText("SCORE SYNCED");
+      this._submitStatusText.setColor("#92ffd0");
+    } catch {
+      if (!this.scene.isActive()) {
+        return;
+      }
+
+      this._submitStatusText.setText("SYNC FAILED");
+      this._submitStatusText.setColor("#ff9f73");
+    }
   }
 
   private _createBackground() {

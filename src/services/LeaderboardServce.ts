@@ -132,12 +132,15 @@ export class LeaderboardService {
       await this.startSession();
     }
 
+    const makeHeaders = () => {
+      const headers = new Headers(options.headers);
+      headers.set("Authorization", `Bearer ${this.tokens!.access}`);
+      return headers;
+    };
+
     let res = await fetch(url, {
       ...options,
-      headers: {
-        ...(options.headers ? options.headers : {}),
-        Authorization: `Bearer ${this.tokens!.access}`,
-      },
+      headers: makeHeaders(),
     });
 
     // Auto refresh on 401
@@ -146,10 +149,7 @@ export class LeaderboardService {
 
       res = await fetch(url, {
         ...options,
-        headers: {
-          ...(options.headers ? options.headers : {}),
-          Authorization: `Bearer ${this.tokens!.access}`,
-        },
+        headers: makeHeaders(),
       });
     }
 
@@ -207,6 +207,8 @@ export class LeaderboardService {
 
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
 
+    console.log("Raw fingerprint data:", raw, hash);
+
     fp = Array.from(new Uint8Array(hash))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
@@ -216,3 +218,5 @@ export class LeaderboardService {
     return fp;
   }
 }
+
+export const leaderboardService = new LeaderboardService();
