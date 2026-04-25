@@ -4,12 +4,14 @@ import {
   PALETTE,
   UI,
   MACHINE,
+  getLevelConfig,
   LEVELS,
   DPR,
+  PX,
   MACHINE_CONFIGS,
   MACHINE_COMMS,
 } from "../core/Constants";
-import type { ChaosEventName, MachineCommSignal } from "../core/Constants";
+import type { ChaosEventName, LevelConfig, MachineCommSignal } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
 import { MotionSystem } from "../systems/MotionSystem";
@@ -92,6 +94,7 @@ export class Game extends Scene {
   private _attackRequirement: AttackRequirement | null = null;
   private _tiltTargetDir: -1 | 1 = 1;
   private _holdTiltBaseline = 0;
+  private _isTransitioning = false;
   private readonly _commPulseEvents = new Set<Time.TimerEvent>();
 
   constructor() {
@@ -99,8 +102,9 @@ export class Game extends Scene {
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
-  create() {
-    gameState.reset();
+  create(data?: { startLevel?: number }) {
+    this._isTransitioning = false;
+    gameState.reset(data?.startLevel ?? gameState.selectedLevel);
 
     this._createBackground();
     this._createUI();
@@ -128,9 +132,10 @@ export class Game extends Scene {
   }
 
   update(time: number, delta: number) {
-    if (gameState.gameOver) return;
+    if (gameState.gameOver || this._isTransitioning) return;
 
     const dt = delta / 1000;
+    const levelConfig = getLevelConfig(gameState.level);
 
     // ── Input ──────────────────────────────────────────────────────────────
     this._motion.update(delta);
@@ -163,7 +168,7 @@ export class Game extends Scene {
     // ── Heat ───────────────────────────────────────────────────────────────
     const vol = gameState.voltage / 100;
     const heatMult = gameState.machineConfig.heatMult;
-    const levelIntensity = 1 + (gameState.level - LEVELS.START) * LEVELS.HEAT_GAIN_PER_LEVEL;
+    const levelIntensity = levelConfig.heatGainMult;
 
     let dHeat = vol * MACHINE.HEAT_RATE * heatMult * levelIntensity * dt * 100;
     dHeat -= MACHINE.PASSIVE_COOLING * dt;
@@ -183,9 +188,7 @@ export class Game extends Scene {
     const riskyTilt = Math.max(0, tiltFraction);
     const pressureGain =
       pressureBaseGain +
-      (vol * 0.65 + riskyTilt * 0.35) *
-        MACHINE.PRESSURE_RISK_GAIN *
-        (1 + (gameState.level - LEVELS.START) * LEVELS.PRESSURE_GAIN_PER_LEVEL);
+      (vol * 0.65 + riskyTilt * 0.35) * MACHINE.PRESSURE_RISK_GAIN * levelConfig.pressureGainMult;
     const pressureVent =
       MACHINE.PRESSURE_PASSIVE_VENT + safeTilt * MACHINE.PRESSURE_SAFE_VENT_BONUS;
 
@@ -210,7 +213,7 @@ export class Game extends Scene {
       this._touchShake ||
       Math.abs(tiltFraction - this._holdTiltBaseline) > 0.35;
     this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, holdAction);
-    this._updateLevelProgression();
+    this._updateLevelProgression(delta);
 
     this._lastShakePower = gameState.shakePower;
     gameState.flipTriggered = false;
@@ -284,6 +287,8 @@ export class Game extends Scene {
   };
 
   private _onGameOver = () => {
+    if (this._isTransitioning) return;
+    this._isTransitioning = true;
     if (gameState.score > gameState.bestScore) {
       gameState.bestScore = Math.floor(gameState.score);
     }
@@ -353,7 +358,7 @@ export class Game extends Scene {
       .setAlpha(0.8);
 
     this.add
-      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.095), "SYS:// AUDIO ENCODER", {
+      .text(cx, st + uh * UI.COMMS_TITLE_Y_FRAC, "SYS:// AUDIO ENCODER", {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: PALETTE.TEXT_DIM,
@@ -363,7 +368,7 @@ export class Game extends Scene {
       .setAlpha(0.75);
 
     this._commsText = this.add
-      .text(cx, st + uh * (UI.MACHINE_Y_FRAC + 0.13), MACHINE_COMMS.IDLE_TEXT, {
+      .text(cx, st + uh * UI.COMMS_TEXT_Y_FRAC, MACHINE_COMMS.IDLE_TEXT, {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: MACHINE_COMMS.IDLE_COLOR,
@@ -406,7 +411,7 @@ export class Game extends Scene {
       .setAlpha(0);
 
     this._chaosText = this.add
-      .text(cx, st + uh * UI.WARNING_Y_FRAC + 30 * DPR, "", {
+      .text(cx, st + uh * UI.WARNING_Y_FRAC + UI.CHAOS_GAP, "", {
         fontSize: UI.CHAOS_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
@@ -416,17 +421,18 @@ export class Game extends Scene {
       .setAlpha(0);
 
     this._attackText = this.add
-      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.06), "", {
+      .text(cx, st + uh * UI.ATTACK_Y_FRAC, "", {
         fontSize: UI.CHAOS_FS,
         fontFamily: "monospace",
         color: PALETTE.TEXT,
         align: "center",
+        wordWrap: { width: UI.CONTENT_W },
       })
       .setOrigin(0.5, 0.5)
       .setAlpha(0);
 
     this._attackTimerText = this.add
-      .text(cx, st + uh * (UI.WARNING_Y_FRAC + 0.1), "", {
+      .text(cx, st + uh * UI.ATTACK_TIMER_Y_FRAC, "", {
         fontSize: UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
@@ -519,6 +525,8 @@ export class Game extends Scene {
       g.clear();
       g.fillStyle(color, alpha);
       g.fillRoundedRect(x - w / 2, y - h / 2, w, h, 8 * DPR);
+      g.lineStyle(1.5 * PX, PALETTE.WHITE, alpha > 0.9 ? 0.6 : 0.28);
+      g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, 8 * DPR);
     };
 
     this._tcLeftBg = this.add.graphics();
@@ -531,21 +539,21 @@ export class Game extends Scene {
 
     this.add
       .text(cx - bw * 1.2, ty, "◄ TILT", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
       .setOrigin(0.5, 0.5);
     this.add
       .text(cx + bw * 1.2, ty, "TILT ►", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
       .setOrigin(0.5, 0.5);
     this.add
       .text(cx, ty + bh, "📳 SHAKE", {
-        fontSize: UI.VALUE_FS,
+        fontSize: UI.IS_COMPACT_H ? `${Math.max(10, Math.round(11 * DPR))}px` : UI.VALUE_FS,
         fontFamily: "monospace",
         color: "#0a0a14",
       })
@@ -641,21 +649,91 @@ export class Game extends Scene {
 
   private _updateScoreText() {
     this._scoreText.setText(Math.floor(gameState.score).toString().padStart(6, "0"));
-    this._comboText.setText(`LVL ${gameState.level} // COMBO x${gameState.combo}`);
+    const levelLabel = gameState.level >= LEVELS.ENDLESS ? "ENDLESS" : `LVL ${gameState.level}`;
+    this._comboText.setText(`${levelLabel} // COMBO x${gameState.combo}`);
     this._comboText.setAlpha(gameState.combo > 1 ? 1 : 0.75);
+
+    if (gameState.activeChaosEvent === null && !gameState.gameOver) {
+      const idleState = this._buildObjectiveCommState();
+      this._setMachineComm(idleState.text, idleState.color);
+    }
   }
 
-  private _updateLevelProgression() {
-    const nextLevel = Math.min(
-      LEVELS.MAX,
-      LEVELS.START + Math.floor(gameState.score / LEVELS.SCORE_STEP),
-    );
-    if (nextLevel <= gameState.level) return;
+  private _updateLevelProgression(deltaMs: number) {
+    const levelConfig = getLevelConfig(gameState.level);
+    gameState.levelElapsedMs += deltaMs;
 
-    gameState.level = nextLevel;
+    if (levelConfig.endless || levelConfig.objective === null) return;
+    if (this._levelObjectiveSatisfied(levelConfig)) {
+      gameState.levelProgressMs = Math.min(
+        levelConfig.objective.surviveMs,
+        gameState.levelProgressMs + deltaMs,
+      );
+    }
+
+    if (gameState.levelProgressMs < levelConfig.objective.surviveMs) return;
+
+    if (this._isTransitioning) return;
+
+    const completedLevel = gameState.level;
+    const nextLevel = Math.min(LEVELS.ENDLESS, gameState.level + 1);
     gameState.bestLevel = Math.max(gameState.bestLevel, nextLevel);
-    this._showWarning(`LEVEL ${nextLevel} // CLOCK UP`, PALETTE.WARNING);
-    this._triggerFlash(0.25, PALETTE.WARNING);
+    gameState.selectedLevel = nextLevel;
+    this._isTransitioning = true;
+    this._triggerFlash(0.35, PALETTE.WARNING);
+    this.cameras.main.fadeOut(320, 0, 0, 0);
+    this.cameras.main.once("camerafadeoutcomplete", () => {
+      this.scene.start("LevelClear", {
+        completedLevel,
+        nextLevel,
+      });
+    });
+  }
+
+  private _levelObjectiveSatisfied(levelConfig: LevelConfig) {
+    const objective = levelConfig.objective;
+    if (objective === null) return true;
+    if (objective.maxHeatPct !== undefined && gameState.heatPct() > objective.maxHeatPct) {
+      return false;
+    }
+    if (
+      objective.maxPressurePct !== undefined &&
+      gameState.pressurePct() > objective.maxPressurePct
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  private _buildObjectiveCommState() {
+    const levelConfig = getLevelConfig(gameState.level);
+    if (levelConfig.endless || levelConfig.objective === null) {
+      return {
+        text: "L6 ENDLESS // SURVIVE AS LONG AS POSSIBLE",
+        color: "#ffcc00",
+      };
+    }
+
+    const objective = levelConfig.objective;
+    const ruleParts: string[] = [];
+    if (objective.maxHeatPct !== undefined) {
+      ruleParts.push(`H<${Math.round(objective.maxHeatPct * 100)}`);
+    }
+    if (objective.maxPressurePct !== undefined) {
+      ruleParts.push(`P<${Math.round(objective.maxPressurePct * 100)}`);
+    }
+
+    const targetSec = (objective.surviveMs / 1000).toFixed(0);
+    const currentSec = (gameState.levelProgressMs / 1000).toFixed(1);
+    const text =
+      ruleParts.length > 0
+        ? `L${gameState.level} ${ruleParts.join(" ")} ${currentSec}/${targetSec}S`
+        : `L${gameState.level} SURVIVE ${currentSec}/${targetSec}S`;
+
+    return {
+      text,
+      color: this._levelObjectiveSatisfied(levelConfig) ? MACHINE_COMMS.IDLE_COLOR : "#ff9f73",
+    };
   }
 
   private _updateWarning() {
@@ -912,6 +990,7 @@ export class Game extends Scene {
   }
 
   private _cleanup = () => {
+    this._isTransitioning = false;
     this._clearCommPulseEvents();
     this._music.stop();
     this._motion.stop();

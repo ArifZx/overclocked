@@ -1,9 +1,10 @@
 import { AUTO, Scale, type Types } from "phaser";
-import { GAME, DPR } from "./core/Constants";
+import { GAME } from "./core/Constants";
 import { Boot } from "./scenes/Boot";
 import { Preloader } from "./scenes/Preloader";
 import { Game } from "./scenes/Game";
 import { GameOver } from "./scenes/GameOver";
+import { LevelClear } from "./scenes/LevelClear";
 
 export const config: Types.Core.GameConfig = {
   type: AUTO,
@@ -14,9 +15,8 @@ export const config: Types.Core.GameConfig = {
   roundPixels: true,
   antialias: true,
   scale: {
-    mode: Scale.FIT,
+    mode: Scale.RESIZE,
     autoCenter: Scale.CENTER_BOTH,
-    zoom: 1 / DPR,
   },
-  scene: [Boot, Preloader, Game, GameOver],
+  scene: [Boot, Preloader, Game, LevelClear, GameOver],
 };

@@ -100,8 +100,8 @@ Core emotional cycle:
    - next event becomes faster
 
 6. LEVEL UP
-   - score milestones raise the machine level
-   - higher levels shrink reaction windows and raise system pressure
+   - each stage has a clear survival objective
+   - clearing stage 5 unlocks endless stage 6
 
 LOOP REPEATS UNTIL DEATH
 ```
@@ -175,13 +175,13 @@ LOOP REPEATS UNTIL DEATH
 
 ## 🧱 LEVEL PROGRESSION
 
-- Level rises automatically from score milestones
-- Each new level should feel like the machine clocking itself higher
-- Higher levels should:
-  - increase heat and pressure aggression
-  - shorten time between attacks
-  - shorten reaction windows
-- UI should clearly show the current level during play and the level reached on game over
+- The run is structured into 5 configured stages and 1 endless stage
+- Each stage should declare:
+  - a survival timer target
+  - optional heat and/or pressure limits that must be respected while filling that timer
+  - its own difficulty tuning for heat gain, pressure gain, event frequency, and reaction windows
+- Stage 6 is endless and acts as the post-campaign survival mode
+- UI should clearly show the current stage during play and the best stage reached on game over
 
 ---
 

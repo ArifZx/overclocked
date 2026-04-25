@@ -16,6 +16,9 @@ class GameState {
   bestCombo = 0;
   level = LEVELS.START;
   bestLevel = LEVELS.START;
+  selectedLevel = LEVELS.START;
+  levelElapsedMs = 0;
+  levelProgressMs = 0;
 
   // ── Input state ───────────────────────────────────────────────────────────
   shakePower = 0;
@@ -54,13 +57,16 @@ class GameState {
     return this.voltage / MACHINE.MAX_VOLTAGE;
   }
 
-  reset() {
+  reset(startLevel = this.selectedLevel) {
+    this.selectedLevel = startLevel;
     this.heat = MACHINE.INITIAL_HEAT;
     this.voltage = MACHINE.INITIAL_VOLTAGE;
     this.pressure = 0;
     this.score = 0;
     this.combo = 0;
-    this.level = LEVELS.START;
+    this.level = startLevel;
+    this.levelElapsedMs = 0;
+    this.levelProgressMs = 0;
     this.shakePower = 0;
     this.tiltAngle = 0;
     this.flipTriggered = false;

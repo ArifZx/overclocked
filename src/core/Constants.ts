@@ -1,42 +1,30 @@
 // ─── Canvas sizing ───────────────────────────────────────────────────────────
 export const DPR = Math.min(window.devicePixelRatio || 1, 2);
-const _isPortrait = window.innerHeight >= window.innerWidth;
-const _designW = _isPortrait ? 540 : 960;
-const _designH = _isPortrait ? 960 : 540;
-const _designAspect = _designW / _designH;
+const _baseW = 540;
+const _baseH = 960;
 
-const _deviceW = window.innerWidth * DPR;
-const _deviceH = window.innerHeight * DPR;
-let _canvasW: number;
-let _canvasH: number;
-if (_deviceW / _deviceH > _designAspect) {
-  _canvasW = Math.round(_deviceH * _designAspect);
-  _canvasH = _deviceH;
-} else {
-  _canvasW = _deviceW;
-  _canvasH = Math.round(_deviceW / _designAspect);
-}
+export const GAME = {
+  WIDTH: window.innerWidth,
+  HEIGHT: window.innerHeight,
+};
 
 /** Canvas pixels per design pixel — multiply all absolute sizes by PX */
-export const PX = _canvasW / _designW;
+export const PX = Math.min(GAME.WIDTH / _baseW, GAME.HEIGHT / _baseH) || 1;
 
 function _readSafeInsets() {
   const s = getComputedStyle(document.documentElement);
   const top = parseInt(s.getPropertyValue("--ogp-safe-top-inset")) || 0;
   const bottom = parseInt(s.getPropertyValue("--ogp-safe-bottom-inset")) || 0;
-  return { top: top * DPR, bottom: bottom * DPR };
+  return {
+    top,
+    bottom,
+  };
 }
 const _insets = _readSafeInsets();
 
 export const SAFE_ZONE = {
-  TOP: Math.max(_canvasH * 0.08, _insets.top),
+  TOP: Math.max(GAME.HEIGHT * 0.08, _insets.top),
   BOTTOM: _insets.bottom,
-};
-
-// ─── Game canvas ─────────────────────────────────────────────────────────────
-export const GAME = {
-  WIDTH: _canvasW,
-  HEIGHT: _canvasH,
 };
 
 // ─── Color palette ───────────────────────────────────────────────────────────
@@ -153,15 +141,103 @@ export const CHAOS = {
   WARNING_MS: 500,
 };
 
+export type LevelObjective = {
+  surviveMs: number;
+  maxHeatPct?: number;
+  maxPressurePct?: number;
+};
+
+export type LevelConfig = {
+  level: number;
+  label: string;
+  briefing: string;
+  objective: LevelObjective | null;
+  heatGainMult: number;
+  pressureGainMult: number;
+  chaosIntervalMult: number;
+  chaosWindowMult: number;
+  endless?: boolean;
+};
+
 export const LEVELS = {
   START: 1,
-  MAX: 8,
-  SCORE_STEP: 320,
-  HEAT_GAIN_PER_LEVEL: 0.045,
-  PRESSURE_GAIN_PER_LEVEL: 0.04,
-  CHAOS_INTERVAL_SHRINK_PER_LEVEL: 0.045,
-  CHAOS_WINDOW_SHRINK_PER_LEVEL: 0.03,
+  CAMPAIGN_LAST: 5,
+  ENDLESS: 6,
+  MAX: 6,
 };
+
+export const LEVEL_CONFIGS: Record<number, LevelConfig> = {
+  1: {
+    level: 1,
+    label: "BOOT SEQUENCE",
+    briefing: "SURVIVE 18S // STABILIZE THE LINK",
+    objective: { surviveMs: 18_000 },
+    heatGainMult: 1,
+    pressureGainMult: 1,
+    chaosIntervalMult: 1.08,
+    chaosWindowMult: 1.08,
+  },
+  2: {
+    level: 2,
+    label: "COOLANT WATCH",
+    briefing: "HOLD HEAT <82% FOR 20S",
+    objective: { surviveMs: 20_000, maxHeatPct: 0.82 },
+    heatGainMult: 1.08,
+    pressureGainMult: 1.04,
+    chaosIntervalMult: 0.96,
+    chaosWindowMult: 0.95,
+  },
+  3: {
+    level: 3,
+    label: "PRESSURE LOCK",
+    briefing: "HOLD PRESSURE <72% FOR 22S",
+    objective: { surviveMs: 22_000, maxPressurePct: 0.72 },
+    heatGainMult: 1.12,
+    pressureGainMult: 1.14,
+    chaosIntervalMult: 0.92,
+    chaosWindowMult: 0.9,
+  },
+  4: {
+    level: 4,
+    label: "DUAL SYNC",
+    briefing: "HOLD HEAT <80% AND PRESSURE <78% FOR 26S",
+    objective: { surviveMs: 26_000, maxHeatPct: 0.8, maxPressurePct: 0.78 },
+    heatGainMult: 1.18,
+    pressureGainMult: 1.18,
+    chaosIntervalMult: 0.88,
+    chaosWindowMult: 0.86,
+  },
+  5: {
+    level: 5,
+    label: "CORE REDLINE",
+    briefing: "HOLD HEAT <76% AND PRESSURE <74% FOR 30S",
+    objective: { surviveMs: 30_000, maxHeatPct: 0.76, maxPressurePct: 0.74 },
+    heatGainMult: 1.26,
+    pressureGainMult: 1.24,
+    chaosIntervalMult: 0.82,
+    chaosWindowMult: 0.8,
+  },
+  6: {
+    level: 6,
+    label: "ENDLESS",
+    briefing: "ENDLESS // NO SAFE SHUTDOWN",
+    objective: null,
+    heatGainMult: 1.34,
+    pressureGainMult: 1.32,
+    chaosIntervalMult: 0.76,
+    chaosWindowMult: 0.74,
+    endless: true,
+  },
+};
+
+export function getLevelConfig(level: number): LevelConfig {
+  const resolved = Math.max(LEVELS.START, Math.min(level, LEVELS.ENDLESS));
+  return LEVEL_CONFIGS[resolved] ?? LEVEL_CONFIGS[LEVELS.ENDLESS];
+}
+
+export function getLevelLabel(level: number) {
+  return level >= LEVELS.ENDLESS ? "ENDLESS" : `LEVEL ${level}`;
+}
 
 export const CHAOS_EVENTS = [
   "heat_burst",
@@ -222,6 +298,16 @@ export const MACHINE_COMMS = {
     pulses: [
       { at: 0, rate: 1.12, detune: 220, volume: 0.18 },
       { at: 120, rate: 1.2, detune: 380, volume: 0.16 },
+    ],
+  },
+  CONGRATS: {
+    text: "STAGE CLEAR // LINK STABLE",
+    color: "#a5ffd2",
+    pulses: [
+      { at: 0, rate: 1.02, detune: 120, volume: 0.16 },
+      { at: 130, rate: 1.14, detune: 320, volume: 0.17 },
+      { at: 280, rate: 1.28, detune: 540, volume: 0.18 },
+      { at: 450, rate: 1.16, detune: 420, volume: 0.14 },
     ],
   },
   FAIL: {
@@ -313,6 +399,7 @@ export const MACHINE_COMMS = {
   IDLE_COLOR: string;
   STARTUP: MachineCommSignal;
   SUCCESS: MachineCommSignal;
+  CONGRATS: MachineCommSignal;
   FAIL: Record<"timeout" | "baited", MachineCommSignal>;
   GAME_OVER: Record<"meltdown" | "explosion", MachineCommSignal>;
   EVENTS: Record<ChaosEventName, MachineCommSignal>;
@@ -581,48 +668,63 @@ export const MACHINE_MUSIC = {
 } satisfies Record<"landing" | "game" | "game_over", MachineMusicTrack>;
 
 // ─── UI layout ────────────────────────────────────────────────────────────────
-const _cx = _canvasW / 2;
-const _safeTop = Math.max(_canvasH * 0.08, _insets.top);
-const _usableH = _canvasH - _safeTop - _insets.bottom;
+const _cx = GAME.WIDTH / 2;
+const _safeTop = Math.max(GAME.HEIGHT * 0.08, _insets.top);
+const _usableH = GAME.HEIGHT - _safeTop - _insets.bottom;
+const _contentW = Math.min(GAME.WIDTH * 0.76, 640 * PX);
+const _touchBtnW = Math.min(GAME.WIDTH * 0.22, 170 * PX);
+const _flipBtnW = Math.min(GAME.WIDTH * 0.35, 250 * PX);
+const _isCompactH = GAME.HEIGHT <= 700;
+const _valueFont = Math.round((_isCompactH ? 12 : 13) * PX);
+const _chaosFont = Math.round((_isCompactH ? 14 : 16) * PX);
+const _warningFont = Math.round((_isCompactH ? 17 : 20) * PX);
 
 export const UI = {
+  IS_COMPACT_H: _isCompactH,
   CX: _cx,
   SAFE_TOP: _safeTop,
   USABLE_H: _usableH,
+  CONTENT_W: _contentW,
+  CONTENT_X: _cx - _contentW / 2,
 
-  BAR_W: _canvasW * 0.76,
+  BAR_W: _contentW,
   BAR_H: 22 * PX,
-  BAR_X: _canvasW * 0.12,
+  BAR_X: _cx - _contentW / 2,
   BAR_CORNER: 6 * PX,
 
   LABEL_FS: `${Math.round(16 * PX)}px`,
-  VALUE_FS: `${Math.round(13 * PX)}px`,
+  VALUE_FS: `${Math.max(11, _valueFont)}px`,
   SCORE_FS: `${Math.round(36 * PX)}px`,
   MACHINE_FS: `${Math.round(14 * PX)}px`,
-  WARNING_FS: `${Math.round(20 * PX)}px`,
-  CHAOS_FS: `${Math.round(16 * PX)}px`,
+  WARNING_FS: `${Math.max(14, _warningFont)}px`,
+  CHAOS_FS: `${Math.max(12, _chaosFont)}px`,
 
   PADDING: 16 * PX,
   SECTION_GAP: 14 * PX,
+  CHAOS_GAP: (_isCompactH ? 20 : 30) * PX,
 
   /** Y positions as factions of usable height, from safe top */
   SCORE_Y_FRAC: 0.05,
   MACHINE_Y_FRAC: 0.11,
-  HEAT_Y_FRAC: 0.22,
-  VOLTAGE_Y_FRAC: 0.36,
-  PRESSURE_Y_FRAC: 0.5,
+  COMMS_TITLE_Y_FRAC: _isCompactH ? 0.17 : 0.19,
+  COMMS_TEXT_Y_FRAC: _isCompactH ? 0.2 : 0.22,
+  HEAT_Y_FRAC: _isCompactH ? 0.24 : 0.255,
+  VOLTAGE_Y_FRAC: _isCompactH ? 0.355 : 0.375,
+  PRESSURE_Y_FRAC: _isCompactH ? 0.47 : 0.495,
   TILT_Y_FRAC: 0.64,
-  WARNING_Y_FRAC: 0.75,
-  TOUCH_Y_FRAC: 0.88,
+  WARNING_Y_FRAC: _isCompactH ? 0.71 : 0.75,
+  ATTACK_Y_FRAC: _isCompactH ? 0.765 : 0.81,
+  ATTACK_TIMER_Y_FRAC: _isCompactH ? 0.805 : 0.85,
+  TOUCH_Y_FRAC: _isCompactH ? 0.895 : 0.88,
 
-  TILT_W: _canvasW * 0.7,
+  TILT_W: Math.min(GAME.WIDTH * 0.7, _contentW * 0.92),
   TILT_H: 18 * PX,
 
-  TOUCH_BTN_W: _canvasW * 0.22,
-  TOUCH_BTN_H: 52 * PX,
-  TOUCH_ALPHA: 0.45,
-  TOUCH_ACTIVE_ALPHA: 0.85,
+  TOUCH_BTN_W: _touchBtnW,
+  TOUCH_BTN_H: Math.max(34, (_isCompactH ? 44 : 52) * PX),
+  TOUCH_ALPHA: 0.78,
+  TOUCH_ACTIVE_ALPHA: 0.96,
 
-  FLIP_BTN_W: _canvasW * 0.35,
-  FLIP_BTN_H: 48 * PX,
+  FLIP_BTN_W: _flipBtnW,
+  FLIP_BTN_H: Math.max(32, (_isCompactH ? 40 : 48) * PX),
 };
