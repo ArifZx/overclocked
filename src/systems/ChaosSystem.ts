@@ -1,4 +1,4 @@
-import { CHAOS, CHAOS_EVENTS, MACHINE_TYPES } from "../core/Constants";
+import { CHAOS, CHAOS_EVENTS, LEVELS, MACHINE_TYPES } from "../core/Constants";
 import type { ChaosEventName } from "../core/Constants";
 import { gameState } from "../core/GameState";
 import { EventBus, Events } from "../core/EventBus";
@@ -54,9 +54,13 @@ export class ChaosSystem {
       CHAOS.MAX_INTERVAL_MS + (CHAOS.MIN_INTERVAL_MS * 1.6 - CHAOS.MAX_INTERVAL_MS) * ramp;
 
     const chaosMult = gameState.machineType === MACHINE_TYPES.CHAOTIC ? 0.6 : 1;
+    const levelIntervalScale = Math.max(
+      0.55,
+      1 - (gameState.level - LEVELS.START) * LEVELS.CHAOS_INTERVAL_SHRINK_PER_LEVEL,
+    );
 
-    const minInterval = Math.max(900, baseMin * chaosMult);
-    const maxInterval = Math.max(minInterval + 200, baseMax * chaosMult);
+    const minInterval = Math.max(700, baseMin * chaosMult * levelIntervalScale);
+    const maxInterval = Math.max(minInterval + 200, baseMax * chaosMult * levelIntervalScale);
     const interval = minInterval + Math.random() * (maxInterval - minInterval);
     this._nextEventTime = nowMs + interval;
   }
@@ -67,7 +71,11 @@ export class ChaosSystem {
     const windowMin = CHAOS.MAX_WINDOW_MS + (CHAOS.MIN_WINDOW_MS - CHAOS.MAX_WINDOW_MS) * ramp;
     const windowMax =
       CHAOS.MAX_WINDOW_MS + (CHAOS.MIN_WINDOW_MS * 1.45 - CHAOS.MAX_WINDOW_MS) * ramp;
-    const reactionWindow = windowMin + Math.random() * (windowMax - windowMin);
+    const levelWindowScale = Math.max(
+      0.6,
+      1 - (gameState.level - LEVELS.START) * LEVELS.CHAOS_WINDOW_SHRINK_PER_LEVEL,
+    );
+    const reactionWindow = (windowMin + Math.random() * (windowMax - windowMin)) * levelWindowScale;
 
     const pick = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
     gameState.activeChaosEvent = pick;

@@ -141,11 +141,21 @@ export const MACHINE_CONFIGS = {
 
 // ─── Chaos events ─────────────────────────────────────────────────────────────
 export const CHAOS = {
-  MIN_INTERVAL_MS: 1_400,
-  MAX_INTERVAL_MS: 4_000,
-  MIN_WINDOW_MS: 800,
-  MAX_WINDOW_MS: 3_000,
+  MIN_INTERVAL_MS: 1_800,
+  MAX_INTERVAL_MS: 4_600,
+  MIN_WINDOW_MS: 1_100,
+  MAX_WINDOW_MS: 3_400,
   WARNING_MS: 500,
+};
+
+export const LEVELS = {
+  START: 1,
+  MAX: 8,
+  SCORE_STEP: 320,
+  HEAT_GAIN_PER_LEVEL: 0.045,
+  PRESSURE_GAIN_PER_LEVEL: 0.04,
+  CHAOS_INTERVAL_SHRINK_PER_LEVEL: 0.045,
+  CHAOS_WINDOW_SHRINK_PER_LEVEL: 0.03,
 };
 
 export const CHAOS_EVENTS = [
@@ -175,6 +185,13 @@ export type MachineMusicStep = MachineCommPulse & {
   chance?: number;
   detuneJitter?: number;
   rateJitter?: number;
+  harmony?: readonly MachineMusicHarmonyVoice[];
+};
+
+export type MachineMusicHarmonyVoice = {
+  detune: number;
+  volume: number;
+  rate?: number;
 };
 
 export type MachineMusicTrack = {
@@ -298,56 +315,256 @@ export const MACHINE_COMMS = {
 
 export const MACHINE_MUSIC = {
   landing: {
-    loopMs: 4_800,
+    loopMs: 5_200,
     steps: [
-      { at: 0, rate: 0.82, detune: -320, volume: 0.09 },
-      { at: 620, rate: 0.88, detune: -180, volume: 0.1 },
-      { at: 1_240, rate: 0.94, detune: -60, volume: 0.11 },
-      { at: 1_860, rate: 1.02, detune: 60, volume: 0.12 },
-      { at: 2_320, rate: 0.9, detune: -120, volume: 0.08, detuneJitter: 20 },
-      { at: 2_540, rate: 1.08, detune: 160, volume: 0.1 },
-      { at: 2_760, rate: 1.16, detune: 300, volume: 0.11 },
-      { at: 3_040, rate: 0.86, detune: -260, volume: 0.08, chance: 0.85 },
-      { at: 3_170, rate: 1.2, detune: 360, volume: 0.08, chance: 0.7 },
-      { at: 3_520, rate: 1.04, detune: 140, volume: 0.1, rateJitter: 0.02 },
-      { at: 3_820, rate: 0.96, detune: -40, volume: 0.09 },
-      { at: 4_160, rate: 0.9, detune: -140, volume: 0.09, detuneJitter: 30 },
-      { at: 4_440, rate: 1.08, detune: 90, volume: 0.08, chance: 0.8 },
+      {
+        at: 0,
+        rate: 0.94,
+        detune: -120,
+        volume: 0.095,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.02 },
+          { detune: 700, volume: 0.022, rate: 1.1 },
+        ],
+      },
+      {
+        at: 240,
+        rate: 1.08,
+        detune: 80,
+        volume: 0.105,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.16 }],
+      },
+      {
+        at: 480,
+        rate: 1.2,
+        detune: 260,
+        volume: 0.11,
+        harmony: [
+          { detune: 380, volume: 0.034, rate: 1.28 },
+          { detune: 700, volume: 0.022, rate: 1.34 },
+        ],
+      },
+      {
+        at: 760,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 320, volume: 0.03, rate: 1.08 }],
+      },
+      {
+        at: 1_040,
+        rate: 0.94,
+        detune: -120,
+        volume: 0.09,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.02 },
+          { detune: 700, volume: 0.022, rate: 1.1 },
+        ],
+      },
+      {
+        at: 1_280,
+        rate: 1.08,
+        detune: 80,
+        volume: 0.105,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.16 }],
+      },
+      {
+        at: 1_520,
+        rate: 1.2,
+        detune: 260,
+        volume: 0.11,
+        harmony: [
+          { detune: 380, volume: 0.034, rate: 1.28 },
+          { detune: 700, volume: 0.022, rate: 1.34 },
+        ],
+      },
+      {
+        at: 1_800,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.095,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.36 }],
+      },
+      {
+        at: 2_180,
+        rate: 0.9,
+        detune: -220,
+        volume: 0.08,
+        harmony: [{ detune: 500, volume: 0.024, rate: 0.98 }],
+      },
+      {
+        at: 2_480,
+        rate: 1.04,
+        detune: 40,
+        volume: 0.092,
+        harmony: [
+          { detune: 320, volume: 0.028, rate: 1.12 },
+          { detune: 700, volume: 0.018, rate: 1.2 },
+        ],
+      },
+      {
+        at: 2_760,
+        rate: 1.16,
+        detune: 220,
+        volume: 0.1,
+        harmony: [{ detune: 700, volume: 0.024, rate: 1.24 }],
+      },
+      {
+        at: 3_000,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.105,
+        harmony: [
+          { detune: 320, volume: 0.03, rate: 1.34 },
+          { detune: 700, volume: 0.02, rate: 1.42 },
+        ],
+      },
+      { at: 3_320, rate: 0.92, detune: -140, volume: 0.08, detuneJitter: 18 },
+      { at: 3_600, rate: 1.22, detune: 300, volume: 0.09, chance: 0.85 },
+      { at: 3_860, rate: 1.34, detune: 520, volume: 0.08, chance: 0.7 },
+      {
+        at: 4_180,
+        rate: 0.96,
+        detune: -40,
+        volume: 0.085,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.04 }],
+      },
+      {
+        at: 4_520,
+        rate: 1.12,
+        detune: 180,
+        volume: 0.095,
+        harmony: [{ detune: 320, volume: 0.026, rate: 1.2 }],
+      },
+      {
+        at: 4_760,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.1,
+        harmony: [{ detune: 700, volume: 0.022, rate: 1.36 }],
+      },
     ],
   },
   game: {
     loopMs: 3_200,
     steps: [
-      { at: 0, rate: 0.92, detune: -180, volume: 0.08 },
-      { at: 160, rate: 1.18, detune: 260, volume: 0.06 },
-      { at: 340, rate: 0.96, detune: -80, volume: 0.08, detuneJitter: 20 },
-      { at: 520, rate: 1.24, detune: 320, volume: 0.05 },
-      { at: 700, rate: 1.02, detune: 30, volume: 0.09 },
-      { at: 860, rate: 1.28, detune: 420, volume: 0.05, chance: 0.85 },
-      { at: 1_020, rate: 0.94, detune: -120, volume: 0.08 },
-      { at: 1_170, rate: 1.22, detune: 360, volume: 0.05 },
-      { at: 1_360, rate: 0.98, detune: 20, volume: 0.09 },
-      { at: 1_520, rate: 1.3, detune: 460, volume: 0.05, rateJitter: 0.03 },
-      { at: 1_700, rate: 0.9, detune: -220, volume: 0.1 },
-      { at: 1_860, rate: 1.18, detune: 260, volume: 0.06 },
-      { at: 2_020, rate: 0.96, detune: -60, volume: 0.09 },
-      { at: 2_180, rate: 1.32, detune: 540, volume: 0.05, chance: 0.75 },
-      { at: 2_360, rate: 0.88, detune: -260, volume: 0.1, detuneJitter: 35 },
-      { at: 2_500, rate: 1.24, detune: 300, volume: 0.06 },
-      { at: 2_660, rate: 0.94, detune: -100, volume: 0.09 },
-      { at: 2_800, rate: 1.36, detune: 620, volume: 0.05, chance: 0.65 },
-      { at: 2_940, rate: 0.86, detune: -320, volume: 0.1 },
-      { at: 3_060, rate: 1.26, detune: 380, volume: 0.05, chance: 0.8 },
+      {
+        at: 0,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 180,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.075,
+        harmony: [{ detune: 320, volume: 0.022, rate: 1.2 }],
+      },
+      {
+        at: 360,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.065,
+        harmony: [
+          { detune: 320, volume: 0.02, rate: 1.34 },
+          { detune: 700, volume: 0.014, rate: 1.42 },
+        ],
+      },
+      {
+        at: 560,
+        rate: 1.04,
+        detune: 80,
+        volume: 0.085,
+        harmony: [{ detune: 700, volume: 0.018, rate: 1.12 }],
+      },
+      {
+        at: 860,
+        rate: 1,
+        detune: 20,
+        volume: 0.09,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 1_040,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.075,
+        harmony: [{ detune: 320, volume: 0.022, rate: 1.2 }],
+      },
+      {
+        at: 1_220,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.065,
+        harmony: [
+          { detune: 320, volume: 0.02, rate: 1.34 },
+          { detune: 700, volume: 0.014, rate: 1.42 },
+        ],
+      },
+      {
+        at: 1_420,
+        rate: 0.96,
+        detune: -100,
+        volume: 0.08,
+        harmony: [{ detune: 320, volume: 0.018, rate: 1.04 }],
+      },
+      {
+        at: 1_600,
+        rate: 0.88,
+        detune: -260,
+        volume: 0.09,
+        harmony: [{ detune: 500, volume: 0.016, rate: 0.96 }],
+      },
+      { at: 1_760, rate: 1.22, detune: 320, volume: 0.065, chance: 0.8 },
+      { at: 1_940, rate: 1.34, detune: 520, volume: 0.055, chance: 0.65 },
+      {
+        at: 2_120,
+        rate: 1,
+        detune: 20,
+        volume: 0.088,
+        harmony: [{ detune: 700, volume: 0.02, rate: 1.08 }],
+      },
+      {
+        at: 2_300,
+        rate: 1.14,
+        detune: 220,
+        volume: 0.072,
+        harmony: [{ detune: 320, volume: 0.02, rate: 1.2 }],
+      },
+      {
+        at: 2_480,
+        rate: 1.28,
+        detune: 420,
+        volume: 0.064,
+        harmony: [{ detune: 700, volume: 0.014, rate: 1.4 }],
+      },
+      { at: 2_700, rate: 0.92, detune: -140, volume: 0.078, detuneJitter: 22 },
+      { at: 2_880, rate: 1.2, detune: 300, volume: 0.062, chance: 0.85 },
+      { at: 3_040, rate: 1.32, detune: 500, volume: 0.052, chance: 0.7 },
     ],
   },
   game_over: {
     loopMs: 4_200,
     steps: [
-      { at: 0, rate: 0.78, detune: -420, volume: 0.11 },
+      {
+        at: 0,
+        rate: 0.78,
+        detune: -420,
+        volume: 0.11,
+        harmony: [{ detune: 620, volume: 0.018, rate: 0.84 }],
+      },
       { at: 420, rate: 0.82, detune: -320, volume: 0.1 },
       { at: 960, rate: 0.88, detune: -180, volume: 0.08 },
       { at: 1_280, rate: 1, detune: 20, volume: 0.05, chance: 0.7 },
-      { at: 1_620, rate: 0.74, detune: -520, volume: 0.12 },
+      {
+        at: 1_620,
+        rate: 0.74,
+        detune: -520,
+        volume: 0.12,
+        harmony: [{ detune: 700, volume: 0.016, rate: 0.8 }],
+      },
       { at: 2_040, rate: 0.84, detune: -300, volume: 0.09, detuneJitter: 18 },
       { at: 2_380, rate: 1.06, detune: 120, volume: 0.05, chance: 0.55 },
       { at: 2_760, rate: 0.8, detune: -360, volume: 0.1 },

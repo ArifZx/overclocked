@@ -99,6 +99,10 @@ Core emotional cycle:
 5. SPEED INCREASE
    - next event becomes faster
 
+6. LEVEL UP
+   - score milestones raise the machine level
+   - higher levels shrink reaction windows and raise system pressure
+
 LOOP REPEATS UNTIL DEATH
 ```
 ````
@@ -165,6 +169,19 @@ LOOP REPEATS UNTIL DEATH
 - Random pressure buildup
 - Triggers attack events
 - Safe tilt should slowly vent pressure; risky tilt should build it faster
+- Higher levels should reduce calm time and shorten response windows
+
+---
+
+## 🧱 LEVEL PROGRESSION
+
+- Level rises automatically from score milestones
+- Each new level should feel like the machine clocking itself higher
+- Higher levels should:
+  - increase heat and pressure aggression
+  - shorten time between attacks
+  - shorten reaction windows
+- UI should clearly show the current level during play and the level reached on game over
 
 ---
 

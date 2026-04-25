@@ -1,5 +1,14 @@
 import { Scene, type GameObjects, type Time } from "phaser";
-import { GAME, PALETTE, UI, MACHINE, DPR, MACHINE_CONFIGS, MACHINE_COMMS } from "../core/Constants";
+import {
+  GAME,
+  PALETTE,
+  UI,
+  MACHINE,
+  LEVELS,
+  DPR,
+  MACHINE_CONFIGS,
+  MACHINE_COMMS,
+} from "../core/Constants";
 import type { ChaosEventName, MachineCommSignal } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
@@ -82,6 +91,7 @@ export class Game extends Scene {
   private _attackResolved = false;
   private _attackRequirement: AttackRequirement | null = null;
   private _tiltTargetDir: -1 | 1 = 1;
+  private _holdTiltBaseline = 0;
   private readonly _commPulseEvents = new Set<Time.TimerEvent>();
 
   constructor() {
@@ -153,8 +163,9 @@ export class Game extends Scene {
     // ── Heat ───────────────────────────────────────────────────────────────
     const vol = gameState.voltage / 100;
     const heatMult = gameState.machineConfig.heatMult;
+    const levelIntensity = 1 + (gameState.level - LEVELS.START) * LEVELS.HEAT_GAIN_PER_LEVEL;
 
-    let dHeat = vol * MACHINE.HEAT_RATE * heatMult * dt * 100;
+    let dHeat = vol * MACHINE.HEAT_RATE * heatMult * levelIntensity * dt * 100;
     dHeat -= MACHINE.PASSIVE_COOLING * dt;
 
     const effectiveShake = gameState.shakePower;
@@ -171,7 +182,10 @@ export class Game extends Scene {
     const safeTilt = Math.max(0, -tiltFraction);
     const riskyTilt = Math.max(0, tiltFraction);
     const pressureGain =
-      pressureBaseGain + (vol * 0.65 + riskyTilt * 0.35) * MACHINE.PRESSURE_RISK_GAIN;
+      pressureBaseGain +
+      (vol * 0.65 + riskyTilt * 0.35) *
+        MACHINE.PRESSURE_RISK_GAIN *
+        (1 + (gameState.level - LEVELS.START) * LEVELS.PRESSURE_GAIN_PER_LEVEL);
     const pressureVent =
       MACHINE.PRESSURE_PASSIVE_VENT + safeTilt * MACHINE.PRESSURE_SAFE_VENT_BONUS;
 
@@ -188,8 +202,15 @@ export class Game extends Scene {
     // ── Attack resolution loop ─────────────────────────────────────────────
     const shakeBurst = gameState.shakePower - this._lastShakePower > 7;
     const flipTriggered = gameState.flipTriggered;
-    const panicInput = shakeBurst || flipTriggered || Math.abs(tiltFraction) > 0.78;
-    this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, panicInput);
+    const holdAction =
+      shakeBurst ||
+      flipTriggered ||
+      this._touchLeft ||
+      this._touchRight ||
+      this._touchShake ||
+      Math.abs(tiltFraction - this._holdTiltBaseline) > 0.35;
+    this._resolveAttackWindow(time, tiltFraction, shakeBurst, flipTriggered, holdAction);
+    this._updateLevelProgression();
 
     this._lastShakePower = gameState.shakePower;
     gameState.flipTriggered = false;
@@ -230,6 +251,10 @@ export class Game extends Scene {
     this._chaosText.setText(`⚠ ${CHAOS_LABELS[data.event]}`);
     this._chaosText.setAlpha(1);
     this._attackRequirement = this._pickRequirement(data.event);
+    this._holdTiltBaseline = Math.max(
+      -1,
+      Math.min(1, gameState.tiltAngle / MACHINE.TILT_SENSITIVITY),
+    );
     this._attackText.setText(this._promptForRequirement(this._attackRequirement));
     this._attackText.setAlpha(1);
     this._attackTimerText.setAlpha(1);
@@ -241,7 +266,11 @@ export class Game extends Scene {
 
   private _onChaosEnd = (data: { event: ChaosEventName }) => {
     if (!this._attackResolved) {
-      this._handleAttackFail(data.event, "timeout");
+      if (this._attackRequirement === "hold") {
+        this._handleAttackSuccess(data.event, this.time.now);
+      } else {
+        this._handleAttackFail(data.event, "timeout");
+      }
     }
     this._attackRequirement = null;
     this.tweens.add({ targets: this._chaosText, alpha: 0, duration: 500 });
@@ -612,8 +641,21 @@ export class Game extends Scene {
 
   private _updateScoreText() {
     this._scoreText.setText(Math.floor(gameState.score).toString().padStart(6, "0"));
-    this._comboText.setText(`COMBO x${gameState.combo}`);
+    this._comboText.setText(`LVL ${gameState.level} // COMBO x${gameState.combo}`);
     this._comboText.setAlpha(gameState.combo > 1 ? 1 : 0.75);
+  }
+
+  private _updateLevelProgression() {
+    const nextLevel = Math.min(
+      LEVELS.MAX,
+      LEVELS.START + Math.floor(gameState.score / LEVELS.SCORE_STEP),
+    );
+    if (nextLevel <= gameState.level) return;
+
+    gameState.level = nextLevel;
+    gameState.bestLevel = Math.max(gameState.bestLevel, nextLevel);
+    this._showWarning(`LEVEL ${nextLevel} // CLOCK UP`, PALETTE.WARNING);
+    this._triggerFlash(0.25, PALETTE.WARNING);
   }
 
   private _updateWarning() {
@@ -660,7 +702,7 @@ export class Game extends Scene {
     tiltFraction: number,
     shakeBurst: boolean,
     flipTriggered: boolean,
-    panicInput: boolean,
+    holdAction: boolean,
   ) {
     const event = gameState.activeChaosEvent;
     if (event === null || this._attackResolved || this._attackRequirement === null) return;
@@ -668,7 +710,7 @@ export class Game extends Scene {
     const req = this._attackRequirement;
 
     if (req === "hold") {
-      if (panicInput) {
+      if (holdAction) {
         this._handleAttackFail(event, "baited");
       }
       return;
@@ -682,6 +724,10 @@ export class Game extends Scene {
 
     if (!success) return;
 
+    this._handleAttackSuccess(event, nowMs);
+  }
+
+  private _handleAttackSuccess(event: ChaosEventName, nowMs: number) {
     this._attackResolved = true;
     gameState.combo += 1;
     gameState.bestCombo = Math.max(gameState.bestCombo, gameState.combo);

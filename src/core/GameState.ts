@@ -1,4 +1,4 @@
-import { MACHINE, MACHINE_TYPES, MACHINE_CONFIGS } from "./Constants";
+import { MACHINE, MACHINE_TYPES, MACHINE_CONFIGS, LEVELS } from "./Constants";
 import type { ChaosEventName } from "./Constants";
 
 export type MachineType = (typeof MACHINE_TYPES)[keyof typeof MACHINE_TYPES];
@@ -14,6 +14,8 @@ class GameState {
   bestScore = 0;
   combo = 0;
   bestCombo = 0;
+  level = LEVELS.START;
+  bestLevel = LEVELS.START;
 
   // ── Input state ───────────────────────────────────────────────────────────
   shakePower = 0;
@@ -58,6 +60,7 @@ class GameState {
     this.pressure = 0;
     this.score = 0;
     this.combo = 0;
+    this.level = LEVELS.START;
     this.shakePower = 0;
     this.tiltAngle = 0;
     this.flipTriggered = false;

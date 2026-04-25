@@ -95,10 +95,18 @@ export class GameOver extends Scene {
       .setOrigin(0.5, 0.5);
 
     this.add
-      .text(cx, st + uh * 0.7, `BEST COMBO: x${gameState.bestCombo}`, {
+      .text(cx, st + uh * 0.7, `LEVEL ${gameState.level} // BEST COMBO x${gameState.bestCombo}`, {
         fontSize: UI.MACHINE_FS,
         fontFamily: "monospace",
         color: "#ffcc00",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.add
+      .text(cx, st + uh * 0.74, `BEST LEVEL: ${gameState.bestLevel}`, {
+        fontSize: UI.MACHINE_FS,
+        fontFamily: "monospace",
+        color: PALETTE.TEXT_DIM,
       })
       .setOrigin(0.5, 0.5);
 
@@ -106,7 +114,7 @@ export class GameOver extends Scene {
     const bw = GAME.WIDTH * 0.55;
     const bh = 52 * DPR;
     const bx = cx - bw / 2;
-    const by = st + uh * 0.79;
+    const by = st + uh * 0.8;
 
     const btnBg = this.add.graphics();
     btnBg.fillStyle(PALETTE.VOLTAGE, 0.9);
