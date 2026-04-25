@@ -8,9 +8,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default defineConfig({
+  define: {
+    global: "globalThis",
+  },
+  server: {
+    allowedHosts: ["nonseptate-overdiffusely-savannah.ngrok-free.dev"],
+    watch: {
+      ignored: ["**/.agents/**", "**/.github/**"],
+    },
+  },
   resolve: {
     alias: {
-      phaser: path.resolve(__dirname, "node_modules/phaser/src/phaser-esm.js"),
+      phaser: path.resolve(__dirname, "node_modules/phaser/src/phaser-no-physics.js"),
     },
   },
   staged: {
@@ -21,6 +30,16 @@ export default defineConfig({
   build: {
     minify: true,
     rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "phaser",
+              test: /[\\/]node_modules[\\/]phaser[\\/]/,
+            },
+          ],
+        },
+      },
       treeshake: true,
       plugins: [
         replacePlugin({
@@ -32,8 +51,6 @@ export default defineConfig({
           "typeof PLUGIN_CAMERA3D": JSON.stringify(false),
           "typeof PLUGIN_FBINSTANT": JSON.stringify(false),
           "typeof FEATURE_SOUND": JSON.stringify(true),
-          "export const Physics = require('./physics')":
-            "export const Physics = { Arcade: {}, Matter: {} }",
         }),
       ],
     },

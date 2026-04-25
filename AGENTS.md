@@ -1,3 +1,55 @@
+# Agent Guide
+
+Use this file as the canonical project guide for coding agents working in this repository.
+
+## What This Project Is
+
+- Mobile-first Phaser reaction game built with Vite+.
+- Core concept and gameplay intent live in [docs/game-design.md](docs/game-design.md).
+
+## Commands
+
+- Install dependencies with `vp install`.
+- Start local development with `vp dev`.
+- Run format, lint, and type checks with `vp check`.
+- Build production output with `vp build`.
+- Do not use `npm`, `pnpm`, or `yarn` directly; this repo uses Vite+ wrappers.
+- There are currently no test files in the repo. Do not assume `vp test` is a useful validation step unless tests are added.
+
+## Architecture
+
+- [src/main.ts](src/main.ts) boots Phaser with the config from [src/config.ts](src/config.ts).
+- [src/core/Constants.ts](src/core/Constants.ts) is the source of truth for machine tuning, UI sizing, and scaling values. Change balance and layout here instead of hardcoding numbers in scenes.
+- [src/core/GameState.ts](src/core/GameState.ts) holds the shared runtime state for heat, voltage, pressure, score, motion, and lifecycle flags.
+- [src/core/EventBus.ts](src/core/EventBus.ts) defines the cross-system event contract. Reuse the existing event names before inventing new ones.
+- [src/systems/MotionSystem.ts](src/systems/MotionSystem.ts) reads device motion and writes into game state. It also provides touch fallback behavior.
+- [src/systems/ChaosSystem.ts](src/systems/ChaosSystem.ts) controls timed chaos events and attack windows.
+- [src/scenes/Game.ts](src/scenes/Game.ts) is the main gameplay scene and HUD render loop.
+- Scene flow is `Boot -> Preloader -> Game -> GameOver` via [src/scenes/Boot.ts](src/scenes/Boot.ts), [src/scenes/Preloader.ts](src/scenes/Preloader.ts), [src/scenes/Game.ts](src/scenes/Game.ts), and [src/scenes/GameOver.ts](src/scenes/GameOver.ts).
+
+## Conventions
+
+- Use named imports from `phaser`. Do not use `import * as Phaser from "phaser"` and do not use `Phaser.` member access.
+- Keep game logic close to the owning layer:
+  - Scene rendering and UI in `src/scenes/*`
+  - Sensor and chaos behavior in `src/systems/*`
+  - Shared state and event contracts in `src/core/*`
+- Preserve the mobile-first scaling model. If a visual value should scale with the game surface, derive it from the constants in [src/core/Constants.ts](src/core/Constants.ts).
+- Keep motion-permission changes aligned with the existing iOS permission flow in [src/systems/MotionSystem.ts](src/systems/MotionSystem.ts) and the entry flow in [src/scenes/Preloader.ts](src/scenes/Preloader.ts). Do not bypass the preload permission gate.
+- If you change gameplay rules, cross-check the intended feel against [docs/game-design.md](docs/game-design.md) instead of restating the design doc here.
+
+## Editing Guidance
+
+- For gameplay changes, start from [src/scenes/Game.ts](src/scenes/Game.ts) and then step to the system or state file that actually owns the behavior.
+- For balancing or thresholds, edit [src/core/Constants.ts](src/core/Constants.ts) first.
+- For event-driven behavior, inspect [src/core/EventBus.ts](src/core/EventBus.ts) before adding new event names.
+- For input changes, inspect [src/systems/MotionSystem.ts](src/systems/MotionSystem.ts) and verify touch fallback still works.
+
+## Validation
+
+- Default validation for code changes is `vp check`.
+- Use `vp build` when changes may affect bundling, imports, or Phaser build behavior.
+- The Vite config in [vite.config.ts](vite.config.ts) includes Phaser aliasing, code-splitting, and staged-file checks. Read it before changing build behavior.
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web

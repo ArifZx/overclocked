@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "phaser": {
+      "source": "D:\\Development\\web-dev\\game-creator",
+      "sourceType": "local",
+      "computedHash": "db2dacd817400cb9f5f87132081909ed8d3a11663c0ee126562b8d7204b097c2"
+    }
+  }
+}

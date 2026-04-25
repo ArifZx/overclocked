@@ -10,7 +10,8 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "phaser": "^4.0.0"
+    "phaser": "^4.0.0",
+    "phaser3spectorjs": "^0.0.8"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
