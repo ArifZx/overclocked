@@ -5,6 +5,7 @@ import { Preloader } from "./scenes/Preloader";
 import { Game } from "./scenes/Game";
 import { GameOver } from "./scenes/GameOver";
 import { LevelClear } from "./scenes/LevelClear";
+import type { WavedashSDK } from "@wvdsh/sdk-js";
 
 export const config: Types.Core.GameConfig = {
   type: AUTO,
@@ -19,4 +20,14 @@ export const config: Types.Core.GameConfig = {
     autoCenter: Scale.CENTER_BOTH,
   },
   scene: [Boot, Preloader, Game, LevelClear, GameOver],
+  callbacks: {
+    postBoot: () => {
+      const Wavedash = (window as unknown as { Wavedash: WavedashSDK }).Wavedash;
+      if (Wavedash === undefined) {
+        return;
+      }
+
+      Wavedash.init();
+    },
+  },
 };
