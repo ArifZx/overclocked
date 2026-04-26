@@ -1,3 +1,5 @@
+import type { WavedashSDK } from "@wvdsh/sdk-js";
+
 type Tokens = {
   access: string;
   refresh: string;
@@ -160,7 +162,15 @@ export class LeaderboardService {
   // WAVEDASH
   // =========================
   private isWavedash(): boolean {
-    return typeof window !== "undefined" && "WavedashJS" in window;
+    return this.getWavedash() !== null;
+  }
+
+  private getWavedash(): WavedashSDK | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return (window as unknown as { Wavedash?: WavedashSDK }).Wavedash ?? null;
   }
 
   private async waitForWavedash(timeout = 2000) {
@@ -173,24 +183,39 @@ export class LeaderboardService {
   }
 
   private async submitWavedash(score: number) {
-    const WavedashJS = (window as any).WavedashJS;
+    const wavedash = this.getWavedash();
+    if (wavedash === null) {
+      throw new Error("Wavedash SDK unavailable");
+    }
 
-    const leaderboard = await WavedashJS.getLeaderboard("high-scores");
+    const leaderboard = await wavedash.getLeaderboard("high-scores");
+    if (!leaderboard.success || leaderboard.data === null) {
+      throw new Error("Failed to load Wavedash leaderboard");
+    }
 
-    return WavedashJS.uploadLeaderboardScore(leaderboard.data.id, score, true);
+    return wavedash.uploadLeaderboardScore(leaderboard.data.id, score, true);
   }
 
   private async getWavedashLeaderboard(limit: number): Promise<ScoreEntry[]> {
-    const WavedashJS = (window as any).WavedashJS;
+    const wavedash = this.getWavedash();
+    if (wavedash === null) {
+      throw new Error("Wavedash SDK unavailable");
+    }
 
-    const leaderboard = await WavedashJS.getLeaderboard("high-scores");
+    const leaderboard = await wavedash.getLeaderboard("high-scores");
+    if (!leaderboard.success || leaderboard.data === null) {
+      throw new Error("Failed to load Wavedash leaderboard");
+    }
 
-    const entries = await WavedashJS.getLeaderboardEntries(leaderboard.data.id, { limit });
+    const entries = await wavedash.listLeaderboardEntries(leaderboard.data.id, 0, limit);
+    if (!entries.success || entries.data === null) {
+      return [];
+    }
 
-    return entries.data.map((e: any, i: number) => ({
+    return entries.data.map((e, i) => ({
       rank: i + 1,
       score: e.score,
-      player: e.user?.username,
+      player: e.username,
     }));
   }
 
@@ -206,8 +231,6 @@ export class LeaderboardService {
     const raw = [crypto.randomUUID(), navigator.userAgent, screen.width, screen.height].join("|");
 
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-
-    console.log("Raw fingerprint data:", raw, hash);
 
     fp = Array.from(new Uint8Array(hash))
       .map((b) => b.toString(16).padStart(2, "0"))

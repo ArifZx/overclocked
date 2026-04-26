@@ -1,5 +1,7 @@
 // wavedash-achievement-system.ts
 
+import type { WavedashSDK } from "@wvdsh/sdk-js";
+
 type AchievementConfig = {
   id: string;
   type: "score" | "count";
@@ -146,28 +148,43 @@ class AchievementSystem {
     localStorage.setItem(AchievementSystem.UNLOCKED_KEY, JSON.stringify(Array.from(this.unlocked)));
   }
 
-  private async push(id: string) {
-    const wd = (window as any)?.WavedashJS;
+  private getWavedash(): WavedashSDK | null {
+    if (typeof window === "undefined") {
+      return null;
+    }
 
-    if (!wd?.unlockAchievement) return;
+    return (window as unknown as { Wavedash?: WavedashSDK }).Wavedash ?? null;
+  }
+
+  private async push(id: string) {
+    const wd = this.getWavedash();
+
+    if (wd === null) return;
 
     try {
-      await wd.unlockAchievement(id);
+      const alreadyUnlocked = wd.getAchievement(id);
+      if (alreadyUnlocked) {
+        return;
+      }
+
+      wd.setAchievement(id, true);
     } catch {
       // silent fail (offline / unsupported / error)
     }
   }
 
   private async syncQueue() {
-    const wd = (window as any)?.WavedashJS;
-    if (!wd?.unlockAchievement) return;
+    const wd = this.getWavedash();
+    if (wd === null) return;
 
     const items = this.queue.get();
     const pending: string[] = [];
 
     for (const id of items) {
       try {
-        await wd.unlockAchievement(id);
+        if (!wd.getAchievement(id)) {
+          wd.setAchievement(id, true);
+        }
       } catch {
         pending.push(id);
       }
