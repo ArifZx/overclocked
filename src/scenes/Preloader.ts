@@ -9,6 +9,7 @@ import {
   DPR,
   PX,
 } from "../core/Constants";
+import { achievementSystem } from "../services/AchevmentService";
 import { MotionSystem } from "../systems/MotionSystem";
 import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 import { gameState } from "../core/GameState";
@@ -542,6 +543,7 @@ export class Preloader extends Scene {
 
   private _launchGame(level: number) {
     this._music.stop();
+    achievementSystem.emit("game_played");
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.cameras.main.once("camerafadeoutcomplete", () => {
       this.scene.start("Game", { startLevel: level });

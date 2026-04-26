@@ -15,6 +15,7 @@ import {
 import type { ChaosEventName, LevelConfig, MachineCommSignal } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
+import { achievementSystem } from "../services/AchevmentService";
 import { MotionSystem } from "../systems/MotionSystem";
 import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 import { ChaosSystem, CHAOS_LABELS } from "../systems/ChaosSystem";
@@ -300,6 +301,7 @@ export class Game extends Scene {
   private _onGameOver = () => {
     if (this._isTransitioning) return;
     this._isTransitioning = true;
+    achievementSystem.emit("score", { value: Math.floor(gameState.score) });
     if (gameState.score > gameState.bestScore) {
       gameState.bestScore = Math.floor(gameState.score);
     }
@@ -925,6 +927,7 @@ export class Game extends Scene {
 
   private _handleAttackFail(event: ChaosEventName, reason: "timeout" | "baited") {
     this._attackResolved = true;
+    achievementSystem.emit("mistake");
     gameState.combo = 0;
 
     if (event === "heat_burst") {

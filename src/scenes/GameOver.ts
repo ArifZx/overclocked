@@ -2,6 +2,7 @@ import { Scene, type GameObjects } from "phaser";
 import { GAME, getLevelLabel, LEVELS, PALETTE, UI, DPR, PX } from "../core/Constants";
 import { EventBus, Events } from "../core/EventBus";
 import { gameState } from "../core/GameState";
+import { achievementSystem } from "../services/AchevmentService";
 import { leaderboardService } from "../services/LeaderboardServce";
 import { MachineMusicSystem } from "../systems/MachineMusicSystem";
 
@@ -280,6 +281,7 @@ export class GameOver extends Scene {
   private _restart() {
     this._music.stop();
     gameState.reset();
+    achievementSystem.emit("game_played");
     EventBus.emit(Events.GAME_RESTART);
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once("camerafadeoutcomplete", () => {
